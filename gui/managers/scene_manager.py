@@ -169,6 +169,11 @@ class SceneManager:
         
         self.subsystem_stack.pop()
         self._update_breadcrumb()
+        
+    def go_to_top_level(self):
+        """Navigate back to the top level (First Simulation Layer)."""
+        while self.subsystem_stack:
+            self.go_up_level()
     
     def save_graph(self):
         """Save the current graph."""

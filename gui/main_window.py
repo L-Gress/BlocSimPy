@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from config.ui_config import UIConfig
 from .scene import NodeScene
 from .widgets import GraphicsView
-from .managers import ToolbarManager, SceneManager, DockManager
+from .managers import ToolbarManager, SceneManager, DockManager, ScriptManager
 from .dialogs import HelpDialog
 
 
@@ -25,6 +25,7 @@ class MainWindow(QMainWindow):
         self.scene_manager = SceneManager(self)
         self.toolbar_manager = ToolbarManager(self)
         self.dock_manager = DockManager(self)
+        self.script_manager = ScriptManager(self)
         
         # --- Scene Setup ---
         self.scene = NodeScene(self)

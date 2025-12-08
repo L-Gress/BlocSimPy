@@ -61,6 +61,11 @@ class ToolbarManager:
         action_toggle_lib = QAction("📚 Toggle Library", self.main_window)
         action_toggle_lib.triggered.connect(self.main_window.dock_manager.toggle_library)
         self.toolbar.addAction(action_toggle_lib)
+
+        # Scripts
+        action_scripts = QAction("📜 User Scripts", self.main_window)
+        action_scripts.triggered.connect(self.main_window.script_manager.show_editor)
+        self.toolbar.addAction(action_scripts)
         
         self.toolbar.addSeparator()
         
