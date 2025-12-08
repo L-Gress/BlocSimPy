@@ -7,6 +7,6 @@ class GraphicsView(QGraphicsView):
     
     def keyPressEvent(self, event):
         """Forward key events to the scene."""
-        if self.scene():
-            self.scene().keyPressEvent(event)
+        # QGraphicsView automatically forwards key events to the scene if not handled by items.
+        # We just call super which handles this propagation.
         super().keyPressEvent(event)

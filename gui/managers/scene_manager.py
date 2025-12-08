@@ -15,6 +15,9 @@ class SceneManager:
         self.blocks_ui = [] 
         self.current_file_path = None
         
+        # Clipboard
+        self.clipboard_data = None
+        
         # Subsystem navigation
         self.subsystem_stack = []
         self.breadcrumb_label = None
@@ -159,15 +162,10 @@ class SceneManager:
 
         # 4. Restore parent scene from the UPDATED data
         # This creates NEW block instances, so the old subsystem_model reference is indeed obsolete
+        # The GraphSerializer now automatically syncs ports during deserialization (Step 165),
+        # so connections are restored correctly by _load_scene_data.
+        # We DO NOT need to manually refresh ports here anymore; doing so breaks the just-restored connections.
         self._load_scene_data(parent_data)
-        
-        # 5. Refresh I/O ports for SubGraphs to reflect any changes made inside
-        # We do this for all SubGraphs because we don't track the new ID mapping easily, 
-        # and it's a cheap operation.
-        for ui_block in self.blocks_ui:
-            if ui_block.model.__class__.__name__ == "SubGraph":
-                ui_block.model.refresh_io_ports()
-                ui_block.refresh_ports()
         
         self.subsystem_stack.pop()
         self._update_breadcrumb()
@@ -274,6 +272,217 @@ class SceneManager:
                     to_port_ui.connections.append(conn)
                     to_port_ui.model.connected_port = from_port_ui.model
     
+    def copy_selection(self):
+        """Copy selected blocks to clipboard."""
+        selected = self.main_window.scene.selectedItems()
+        blocks = [item for item in selected if isinstance(item, UIBlock)]
+        if not blocks:
+            return
+            
+        self.clipboard_data = GraphSerializer.serialize_graph(blocks)
+
+    def cut_selection(self):
+        """Cut selected blocks to clipboard."""
+        self.copy_selection()
+        
+        # Delete selected blocks and connections
+        selected = self.main_window.scene.selectedItems()
+        # Delete connections first (to avoid issues with block deletion)
+        # But scene.delete_block handles connection deletion.
+        # Just loop carefully.
+        
+        # Filter blocks to delete
+        blocks_to_delete = [item for item in selected if isinstance(item, UIBlock)]
+        # Filter standalone connections (if supported in future, for now just blocks)
+        
+        scene = self.main_window.scene
+        for block in blocks_to_delete:
+            scene.delete_block(block)
+
+    def paste_selection(self):
+        """Paste blocks from clipboard."""
+        if not self.clipboard_data:
+            return
+
+        # Deserialize (creates NEW models with FRESH IDs)
+        block_models, connections_data = GraphSerializer.deserialize_graph(self.clipboard_data)
+
+        # Map to find UI blocks for connections
+        id_to_ui_block = {}
+        
+        # Determine offset (e.g., center of screen or offset from original)
+        # Simple approach: Offset by +20, +20 from original position
+        offset_x = 20
+        offset_y = 20
+
+        # Create UI Blocks
+        selected_items = []
+        for block_model in block_models:
+            ui_block = UIBlock(block_model)
+            
+            # Restore position with offset
+            if hasattr(block_model, '_temp_position'):
+                pos = block_model._temp_position
+                new_x = pos['x'] + offset_x
+                new_y = pos['y'] + offset_y
+                ui_block.setPos(QPointF(new_x, new_y))
+                delattr(block_model, '_temp_position')
+            
+            # Restore rotation
+            if hasattr(block_model, '_temp_rotation'):
+                ui_block.setRotation(block_model._temp_rotation)
+                delattr(block_model, '_temp_rotation')
+            
+            # Add to Scene
+            self.main_window.scene.addItem(ui_block)
+            self.blocks_ui.append(ui_block)
+            id_to_ui_block[block_model.id] = ui_block
+            
+            # Select the new items
+            ui_block.setSelected(True)
+            selected_items.append(ui_block)
+            
+            # Initialize ports
+            if hasattr(block_model, "refresh_io_ports"):
+                # Ensure SubGraphs have ports before connecting
+                block_model.refresh_io_ports()
+                ui_block.refresh_ports()
+
+        # Recreate Connections
+        for conn_data in connections_data:
+            from_block = conn_data["from_block"]
+            to_block = conn_data["to_block"]
+            from_port_name = conn_data["from_port"]
+            to_port_name = conn_data["to_port"]
+            
+            from_ui = id_to_ui_block.get(from_block.id)
+            to_ui = id_to_ui_block.get(to_block.id)
+            
+            if from_ui and to_ui:
+                from_port_ui = from_ui.ports_ui.get(from_port_name)
+                to_port_ui = to_ui.ports_ui.get(to_port_name)
+                
+                if from_port_ui and to_port_ui:
+                    conn = UIConnection(from_port_ui, to_port_ui)
+                    
+                    # Offset points if they exist
+                    if conn_data.get("points"):
+                        conn.points = [QPointF(p[0] + offset_x, p[1] + offset_y) for p in conn_data["points"]]
+                    
+                    conn.update_path()
+                    self.main_window.scene.addItem(conn)
+                    from_port_ui.connections.append(conn)
+                    to_port_ui.connections.append(conn)
+                    to_port_ui.model.connected_port = from_port_ui.model
+                    
+                    conn.setSelected(True)
+        
+        # Deselect everything else first?
+        # Ideally, we should clear selection before pasting, then select pasted items.
+        # But 'set_selected' above only marks them as selected.
+        # Let's clear existing selection first.
+        # Note: We can't access scene easily inside the loop if we want to clear first.
+        # We should have cleared selection at the start of paste.
+        pass # Placeholder
+
+    def copy_selection(self):
+        """Copy selected blocks to clipboard."""
+        selected = self.main_window.scene.selectedItems()
+        blocks = [item for item in selected if isinstance(item, UIBlock)]
+        if not blocks:
+            return
+            
+        self.clipboard_data = GraphSerializer.serialize_graph(blocks)
+
+    def cut_selection(self):
+        """Cut selected blocks to clipboard."""
+        self.copy_selection()
+        
+        # Delete selected blocks (and their connections automatically via scene.delete_block)
+        selected = self.main_window.scene.selectedItems()
+        blocks_to_delete = [item for item in selected if isinstance(item, UIBlock)]
+        
+        scene = self.main_window.scene
+        for block in blocks_to_delete:
+            scene.delete_block(block)
+
+    def paste_selection(self):
+        """Paste blocks from clipboard."""
+        if not self.clipboard_data:
+            return
+
+        # Clear current selection so we can select the pasted items
+        self.main_window.scene.clearSelection()
+
+        # Deserialize (creates NEW models with FRESH IDs)
+        block_models, connections_data = GraphSerializer.deserialize_graph(self.clipboard_data)
+
+        # Map to find UI blocks for connections
+        id_to_ui_block = {}
+        
+        # Offset by +20, +20 from original position
+        offset_x = 20
+        offset_y = 20
+
+        # Create UI Blocks
+        for block_model in block_models:
+            ui_block = UIBlock(block_model)
+            
+            # Restore position with offset
+            if hasattr(block_model, '_temp_position'):
+                pos = block_model._temp_position
+                new_x = pos['x'] + offset_x
+                new_y = pos['y'] + offset_y
+                ui_block.setPos(QPointF(new_x, new_y))
+                delattr(block_model, '_temp_position')
+            
+            # Restore rotation
+            if hasattr(block_model, '_temp_rotation'):
+                ui_block.setRotation(block_model._temp_rotation)
+                delattr(block_model, '_temp_rotation')
+            
+            # Add to Scene
+            self.main_window.scene.addItem(ui_block)
+            self.blocks_ui.append(ui_block)
+            id_to_ui_block[block_model.id] = ui_block
+            
+            # Initialize ports if SubGraph
+            if hasattr(block_model, "refresh_io_ports"):
+                 block_model.refresh_io_ports()
+                 ui_block.refresh_ports()
+            
+            # Select the new item
+            ui_block.setSelected(True)
+
+        # Recreate Connections
+        for conn_data in connections_data:
+            from_block = conn_data["from_block"]
+            to_block = conn_data["to_block"]
+            from_port_name = conn_data["from_port"]
+            to_port_name = conn_data["to_port"]
+            
+            from_ui = id_to_ui_block.get(from_block.id)
+            to_ui = id_to_ui_block.get(to_block.id)
+            
+            if from_ui and to_ui:
+                from_port_ui = from_ui.ports_ui.get(from_port_name)
+                to_port_ui = to_ui.ports_ui.get(to_port_name)
+                
+                if from_port_ui and to_port_ui:
+                    conn = UIConnection(from_port_ui, to_port_ui)
+                    
+                    # Offset points if they exist
+                    if conn_data.get("points"):
+                        conn.points = [QPointF(p[0] + offset_x, p[1] + offset_y) for p in conn_data["points"]]
+                    
+                    conn.update_path()
+                    self.main_window.scene.addItem(conn)
+                    from_port_ui.connections.append(conn)
+                    to_port_ui.connections.append(conn)
+                    to_port_ui.model.connected_port = from_port_ui.model
+                    
+                    conn.setSelected(True)
+
     def _update_breadcrumb(self):
         """Update breadcrumb navigation label."""
         if self.breadcrumb_label:

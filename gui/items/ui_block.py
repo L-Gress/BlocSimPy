@@ -237,8 +237,10 @@ class UIBlock(QGraphicsItem):
                 # Port no longer exists (deleted inside subsystem)
                 # We should remove these connections from the scene
                 scene = self.scene()
-                for conn in old_conns:
-                    if scene: scene.removeItem(conn)
+                if scene:
+                    for conn in old_conns:
+                         if conn.scene() == scene:
+                             scene.removeItem(conn)
 
     def rotate_90(self):
         """Rotate the block 90 degrees clockwise."""

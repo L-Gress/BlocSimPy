@@ -100,6 +100,24 @@ class NodeScene(QGraphicsScene):
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
+        # Check for Copy/Cut/Paste
+        modifiers = event.modifiers()
+        if modifiers & Qt.ControlModifier:
+            parent = self.parent()
+            if parent and hasattr(parent, 'scene_manager'):
+                if event.key() == Qt.Key_C:
+                    parent.scene_manager.copy_selection()
+                    event.accept()
+                    return
+                elif event.key() == Qt.Key_X:
+                    parent.scene_manager.cut_selection()
+                    event.accept()
+                    return
+                elif event.key() == Qt.Key_V:
+                    parent.scene_manager.paste_selection()
+                    event.accept()
+                    return
+
         if event.key() == Qt.Key_R:
             for item in self.selectedItems():
                 if isinstance(item, UIBlock):
