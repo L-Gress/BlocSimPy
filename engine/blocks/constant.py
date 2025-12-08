@@ -3,6 +3,14 @@ from ..models import BlockModel
 
 class Constant(BlockModel):
     """Outputs a constant value."""
+    
+    BLOCK_INFO = {
+        "description": "Outputs a constant value throughout simulation",
+        "parameters": "Value (constant number)",
+        "formula": "Output = Value",
+        "usage": "Provide setpoints, parameters, or fixed inputs to systems"
+    }
+    
     def __init__(self):
         super().__init__("Constant")
         self.add_output("out")

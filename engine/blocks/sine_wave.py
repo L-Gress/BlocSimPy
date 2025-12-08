@@ -3,6 +3,15 @@ import numpy as np
 
 
 class SineWave(BlockModel):
+    """Generates a sinusoidal waveform signal."""
+    
+    BLOCK_INFO = {
+        "description": "Generates a sinusoidal waveform signal",
+        "parameters": "Amplitude, Frequency (Hz), Phase (rad)",
+        "formula": "Output = Amplitude × sin(2π × Frequency × t + Phase)",
+        "usage": "Use for testing systems with periodic inputs or generating oscillating signals"
+    }
+    
     def __init__(self):
         super().__init__("SineWave")
         self.add_output("out")

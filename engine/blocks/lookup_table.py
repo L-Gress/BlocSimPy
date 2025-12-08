@@ -111,6 +111,14 @@ class LookupTableDialog(QDialog):
 
 class LookupTable(BlockModel):
     """Linear interpolation 1D with editable table and CSV support."""
+    
+    BLOCK_INFO = {
+        "description": "Maps input values to output using linear interpolation",
+        "parameters": "Table data (X-Y pairs), supports CSV import",
+        "formula": "Output = interp(Input, X_data, Y_data)",
+        "usage": "Implement nonlinear functions, calibration curves, or empirical data"
+    }
+    
     def __init__(self):
         super().__init__("LookupTable")
         self.add_input("in")

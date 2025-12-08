@@ -12,6 +12,14 @@ class PID(BlockModel):
     The PID output is: u(t) = Kp*e(t) + Ki*∫e(t)dt + Kd*de(t)/dt
     where e(t) is the error (input signal).
     """
+    
+    BLOCK_INFO = {
+        "description": "Proportional-Integral-Derivative controller for feedback control",
+        "parameters": "Kp (proportional), Ki (integral), Kd (derivative)",
+        "formula": "Output = Kp×e + Ki×∫e + Kd×(de/dt)",
+        "usage": "Control systems to track setpoints and reject disturbances"
+    }
+    
     def __init__(self):
         super().__init__("PID")
         self.add_input("in")

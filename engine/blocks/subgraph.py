@@ -5,10 +5,20 @@ class SubGraph(BlockModel):
     A container block that holds an internal graph.
     Renamed from SubSystem to SubGraph.
     """
+    
+    BLOCK_INFO = {
+        "description": "Container block holding internal block diagram",
+        "parameters": "BlockName",
+        "formula": "Executes internal diagram during simulation",
+        "usage": "Organize complex systems, create reusable components, manage hierarchy. Double-click to enter/edit"
+    }
+    
     def __init__(self):
         super().__init__("SubGraph")
         
-        self.internal_data = {"blocks": [], "connections": []}
+        # Use separate attributes to match scene_manager expectations
+        self.internal_blocks_data = []
+        self.internal_connections_data = []
         self.execution_blocks = []
         self.execution_map = {}
         
@@ -36,20 +46,18 @@ class SubGraph(BlockModel):
 
     def sync_ports_from_data(self):
         """
-        Reads self.internal_data to determine external inputs/outputs.
+        Reads internal_blocks_data to determine external inputs/outputs.
         """
         self.inputs.clear()
         self.outputs.clear()
         
-        blocks_data = self.internal_data.get("blocks", [])
-        
         # Find InputPort and OutputPort blocks inside
         in_ports_data = sorted(
-            [b for b in blocks_data if b["type"] == "InputPort"],
+            [b for b in self.internal_blocks_data if b["type"] == "InputPort"],
             key=lambda x: x["params"].get("PortName", "")
         )
         out_ports_data = sorted(
-            [b for b in blocks_data if b["type"] == "OutputPort"],
+            [b for b in self.internal_blocks_data if b["type"] == "OutputPort"],
             key=lambda x: x["params"].get("PortName", "")
         )
 
@@ -60,6 +68,10 @@ class SubGraph(BlockModel):
         for b_data in out_ports_data:
             name = b_data["params"].get("PortName", "Out")
             self.add_output(name)
+    
+    def refresh_io_ports(self):
+        """Alias for sync_ports_from_data to match scene_manager expectations."""
+        self.sync_ports_from_data()
 
     def reset(self):
         """Prepare internal blocks for simulation."""
@@ -69,7 +81,7 @@ class SubGraph(BlockModel):
         self.execution_map = {}
         
         # Instantiate Internal Blocks
-        for b_data in self.internal_data.get("blocks", []):
+        for b_data in self.internal_blocks_data:
             b_type = b_data["type"]
             if b_type in BLOCK_REGISTRY:
                 instance = BLOCK_REGISTRY[b_type]()
@@ -85,7 +97,7 @@ class SubGraph(BlockModel):
                 self.execution_map[b_data["id"]] = instance
 
         # Restore Internal Connections
-        for c_data in self.internal_data.get("connections", []):
+        for c_data in self.internal_connections_data:
             source = self.execution_map.get(c_data["from_id"])
             target = self.execution_map.get(c_data["to_id"])
             if source and target:
@@ -121,6 +133,3 @@ class SubGraph(BlockModel):
                 if p_name in self.outputs:
                     if "in" in b.inputs:
                         self.outputs[p_name].value = b.inputs["in"].value
-
-    def get_editor_dialog(self, parent=None):
-        return None

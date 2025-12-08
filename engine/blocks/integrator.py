@@ -3,6 +3,15 @@ import numpy as np
 
 
 class Integrator(BlockModel):
+    """Integrator block - integrates signal over time."""
+    
+    BLOCK_INFO = {
+        "description": "Integrates input signal over time using Euler method",
+        "parameters": "Initial Condition",
+        "formula": "Output(t) = IC + ∫Input(τ)dτ from 0 to t",
+        "usage": "Accumulate values, model dynamic systems, or implement controllers"
+    }
+    
     def __init__(self):
         super().__init__("1/s")
         self.add_input("in")

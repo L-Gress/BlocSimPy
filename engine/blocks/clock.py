@@ -5,6 +5,14 @@ class Clock(BlockModel):
     Clock Source Block.
     Outputs the current simulation time (t) in seconds.
     """
+    
+    BLOCK_INFO = {
+        "description": "Outputs current simulation time",
+        "parameters": "None",
+        "formula": "Output = t (simulation time)",
+        "usage": "Time-dependent logic, scheduling, or time-varying systems"
+    }
+    
     def __init__(self):
         super().__init__("Clock")
         # No inputs, as this is a source

@@ -8,6 +8,14 @@ class Product(BlockModel):
     Product Block.
     Multiplies two inputs: out = in1 * in2
     """
+    
+    BLOCK_INFO = {
+        "description": "Multiplies input signals element-wise",
+        "parameters": "None (takes 2 inputs)",
+        "formula": "Output = in1 × in2",
+        "usage": "Multiply signals, modulate, or implement nonlinear operations"
+    }
+    
     def __init__(self):
         super().__init__("Product")
         self.add_input("in1")

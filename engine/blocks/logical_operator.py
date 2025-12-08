@@ -6,6 +6,14 @@ class LogicalOperator(BlockModel):
     Compares two inputs (A and B) based on the selected operator.
     Output is 1.0 if True, 0.0 if False.
     """
+    
+    BLOCK_INFO = {
+        "description": "Performs logical operations on input signals",
+        "parameters": "Operator (AND, OR, NOT, XOR, NAND, NOR)",
+        "formula": "Outputs 1.0 or 0.0 based on logical operation",
+        "usage": "Combine conditions, implement digital logic, or create state machines"
+    }
+    
     def __init__(self):
         super().__init__("Logical")
         self.add_input("in1") # Operand A

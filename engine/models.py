@@ -7,8 +7,22 @@ class PortModel:
         self.owner = owner_block
         self.name = name
         self.is_input = is_input
-        self.value = 0.0
+        self._value = 0.0
         self.connected_port: Optional['PortModel'] = None
+
+    @property
+    def value(self):
+        """
+        Get the value on this port.
+        If it's an input port and connected, fetch value from the source.
+        """
+        if self.is_input and self.connected_port:
+            return self.connected_port.value
+        return self._value
+
+    @value.setter
+    def value(self, val):
+        self._value = val
 
 
 class BlockModel:

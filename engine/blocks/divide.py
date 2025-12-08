@@ -5,6 +5,14 @@ class Divide(BlockModel):
     Divide Block.
     Divides two inputs: out = num / den
     """
+    
+    BLOCK_INFO = {
+        "description": "Divides first input by second input",
+        "parameters": "None (takes 2 inputs)",
+        "formula": "Output = num / den",
+        "usage": "Normalize signals, calculate ratios, or implement inverse operations"
+    }
+    
     def __init__(self):
         super().__init__("Divide")
         self.add_input("num")

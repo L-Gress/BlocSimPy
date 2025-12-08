@@ -2,11 +2,12 @@ import os
 import json
 import shutil
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, 
-                               QMenu, QInputDialog, QMessageBox, QStyle)  # <--- Added QStyle import
+                               QMenu, QInputDialog, QMessageBox, QStyle)
 from PySide6.QtCore import Qt, Signal
+from config.sim_config import SimConfig
 
 # Define the root directory for user library
-LIBRARY_ROOT = "user_library"
+LIBRARY_ROOT = SimConfig.LIBRARY_ROOT
 
 class UserLibraryWidget(QWidget):
     """

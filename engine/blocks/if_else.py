@@ -12,6 +12,14 @@ class IfElse(BlockModel):
     Output:
     - out    : The selected signal.
     """
+    
+    BLOCK_INFO = {
+        "description": "Conditional output based on comparison operator",
+        "parameters": "Operator (>, <, >=, <=, ==, !=)",
+        "formula": "Output = (cond >= threshold) ? true : false",
+        "usage": "Implement conditional logic, saturation, or switching behavior"
+    }
+    
     def __init__(self):
         super().__init__("If / Else")
         

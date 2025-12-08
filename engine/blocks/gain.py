@@ -1,6 +1,15 @@
 from ..models import BlockModel
 
 class Gain(BlockModel):
+    """Gain block - multiplies input by a constant factor."""
+    
+    BLOCK_INFO = {
+        "description": "Multiplies input signal by a constant gain factor",
+        "parameters": "Gain (multiplication factor)",
+        "formula": "Output = Input × Gain",
+        "usage": "Scale signals, adjust amplitude, or implement simple controllers"
+    }
+    
     def __init__(self):
         super().__init__("Gain")
         self.add_input("in")

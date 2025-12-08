@@ -1,6 +1,15 @@
 from ..models import BlockModel
 
 class OutputPort(BlockModel):
+    """Output port for SubGraphs."""
+    
+    BLOCK_INFO = {
+        "description": "Creates external output port for SubGraphs",
+        "parameters": "PortName",
+        "formula": "Forwards SubGraph internal signal to external output",
+        "usage": "Only used inside SubGraphs to define interface outputs"
+    }
+    
     def __init__(self):
         super().__init__("OutputPort")
         self.add_input("in")

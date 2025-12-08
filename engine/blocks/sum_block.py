@@ -2,6 +2,15 @@ from ..models import BlockModel
 
 
 class Sum(BlockModel):
+    """Sum block - adds or subtracts signals."""
+    
+    BLOCK_INFO = {
+        "description": "Adds or subtracts multiple input signals",
+        "parameters": "Signs (comma-separated +/- for each input)",
+        "formula": "Output = ±Input1 ± Input2 ± ...",
+        "usage": "Combine signals, implement feedback loops, or calculate errors"
+    }
+    
     def __init__(self):
         super().__init__("Sum")
         self.add_input("in1")
