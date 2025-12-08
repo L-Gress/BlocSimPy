@@ -1,0 +1,136 @@
+{
+    "blocks": [
+        {
+            "class": "OutputPort",
+            "type": "OutputPort",
+            "id": 2185576330640,
+            "position": {
+                "x": 301.0,
+                "y": -84.0
+            },
+            "rotation": 0.0,
+            "params": {
+                "PortName": "out"
+            }
+        },
+        {
+            "class": "SineWave",
+            "type": "SineWave",
+            "id": 2185576400320,
+            "position": {
+                "x": -162.0,
+                "y": -91.0
+            },
+            "rotation": 0.0,
+            "params": {
+                "Amplitude": "$Amplitude",
+                "Frequency": "$Frequency"
+            }
+        },
+        {
+            "class": "LogicalOperator",
+            "type": "LogicalOperator",
+            "id": 2185576402048,
+            "position": {
+                "x": 44.0,
+                "y": -86.0
+            },
+            "rotation": 0.0,
+            "params": {
+                "Operator": ">"
+            }
+        },
+        {
+            "class": "Constant",
+            "type": "Constant",
+            "id": 2185576407904,
+            "position": {
+                "x": -151.0,
+                "y": 64.0
+            },
+            "rotation": 0.0,
+            "params": {
+                "Value": 0.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from_block_id": 2185576400320,
+            "from_port": "out",
+            "to_block_id": 2185576402048,
+            "to_port": "in1",
+            "points": [
+                [
+                    -62.0,
+                    -66.0
+                ],
+                [
+                    -9.0,
+                    -66.0
+                ],
+                [
+                    -9.0,
+                    -61.0
+                ],
+                [
+                    44.0,
+                    -61.0
+                ]
+            ]
+        },
+        {
+            "from_block_id": 2185576402048,
+            "from_port": "out",
+            "to_block_id": 2185576330640,
+            "to_port": "in",
+            "points": [
+                [
+                    144.0,
+                    -61.0
+                ],
+                [
+                    222.5,
+                    -61.0
+                ],
+                [
+                    222.5,
+                    -59.0
+                ],
+                [
+                    301.0,
+                    -59.0
+                ]
+            ]
+        },
+        {
+            "from_block_id": 2185576407904,
+            "from_port": "out",
+            "to_block_id": 2185576402048,
+            "to_port": "in2",
+            "points": [
+                [
+                    -51.0,
+                    89.0
+                ],
+                [
+                    -3.5,
+                    89.0
+                ],
+                [
+                    -3.5,
+                    -41.0
+                ],
+                [
+                    44.0,
+                    -41.0
+                ]
+            ]
+        }
+    ],
+    "params": {
+        "BlockName": "SquareWave",
+        "Amplitude": 1.0,
+        "Frequency": 1.0
+    }
+}

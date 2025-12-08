@@ -20,11 +20,26 @@ class BlockContextMenu:
         # Actions
         action_rename = menu.addAction("Rename")
         action_rotate = menu.addAction("Rotate (R)")
+        
+        # Determine block type content
+        action_params = None
+        action_enter = None
+        is_subgraph = block_ui.model.__class__.__name__ == "SubGraph"
+        
+        if is_subgraph:
+            action_params = menu.addAction("Interface (Ctrl+DblClick)")
+            action_enter = menu.addAction("Enter Subsystem (DblClick)")
+        else:
+            action_params = menu.addAction("Parameters (DblClick)")
+            
         menu.addSeparator()
         action_delete = menu.addAction("Delete")
 
         # Execute
         selected_action = menu.exec(screen_pos)
+
+        if selected_action is None:
+            return
 
         if selected_action == action_delete:
             scene.delete_block(block_ui)
@@ -32,6 +47,25 @@ class BlockContextMenu:
             block_ui.rotate_90()
         elif selected_action == action_rename:
             BlockContextMenu.rename_block(block_ui)
+        elif selected_action == action_params:
+            if hasattr(block_ui.model, 'get_editor_dialog'):
+                editor = block_ui.model.get_editor_dialog(None)
+                if editor:
+                    editor.exec()
+                    # Refresh if needed
+                    if hasattr(block_ui.model, 'needs_port_refresh') and block_ui.model.needs_port_refresh:
+                        block_ui.refresh_ports()
+                        block_ui.model.needs_port_refresh = False
+                    # SubGraph updates label on edit, force redraw
+                    block_ui.update()
+        elif selected_action == action_enter:
+            # Logic to enter subsystem
+            views = scene.views()
+            if views:
+                # Assuming the main window is the parent of the view
+                main_window = views[0].parent()
+                if hasattr(main_window, "enter_subsystem"):
+                    main_window.enter_subsystem(block_ui)
     
     @staticmethod
     def rename_block(block_ui):

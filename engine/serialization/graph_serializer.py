@@ -26,6 +26,7 @@ class GraphSerializer:
         for ui_block in blocks_ui:
             block_data = {
                 "class": ui_block.model.__class__.__name__,
+                "type": ui_block.model.__class__.__name__,  # Alias for SubGraph compatibility
                 "id": ui_block.model.id,
                 "position": {"x": ui_block.pos().x(), "y": ui_block.pos().y()},
                 "rotation": ui_block.rotation(),
@@ -81,6 +82,9 @@ class GraphSerializer:
                 if "internal_blocks_data" in block_data:
                     new_block.internal_blocks_data = block_data["internal_blocks_data"]
                     new_block.internal_connections_data = block_data["internal_connections_data"]
+                    # CRITICAL: Sync ports immediately so UIBlock creates them
+                    if hasattr(new_block, "refresh_io_ports"):
+                        new_block.refresh_io_ports()
                 
                 # Update label if block has the method
                 if hasattr(new_block, "_update_label"):

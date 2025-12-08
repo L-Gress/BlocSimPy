@@ -59,7 +59,8 @@ class SceneManager:
         # Serialize the internal data
         subgraph_data = {
             "blocks": subgraph_model.internal_blocks_data,
-            "connections": subgraph_model.internal_connections_data
+            "connections": subgraph_model.internal_connections_data,
+            "params": subgraph_model.params.copy()
         }
         
         # Ask for a name
@@ -84,6 +85,13 @@ class SceneManager:
             new_subgraph = BLOCK_REGISTRY["SubGraph"]()
             new_subgraph.internal_blocks_data = subgraph_data.get("blocks", [])
             new_subgraph.internal_connections_data = subgraph_data.get("connections", [])
+            
+            # Load interface parameters (custom variables & name)
+            if "params" in subgraph_data:
+                new_subgraph.params.update(subgraph_data["params"])
+                # Ensure label updates with loaded name
+                if hasattr(new_subgraph, "_update_label"):
+                    new_subgraph._update_label()
             
             # Refresh ports based on internal InputPort/OutputPort blocks
             new_subgraph.refresh_io_ports()
@@ -128,24 +136,38 @@ class SceneManager:
             QMessageBox.information(self.main_window, "Top Level", "Already at top level.")
             return
         
-        # Save changes to the subsystem
+        # 1. Serialize the CURRENT scene (the inside of the subsystem)
         current_subsystem_data = GraphSerializer.serialize_graph(self.blocks_ui)
+        
+        # 2. Get the parent context
         parent_context = self.subsystem_stack[-1]
-        parent_context["subsystem_model"].internal_blocks_data = current_subsystem_data["blocks"]
-        parent_context["subsystem_model"].internal_connections_data = current_subsystem_data["connections"]
-        
-        # Refresh I/O ports of the subsystem block based on internal InputPort/OutputPort
-        parent_context["subsystem_model"].refresh_io_ports()
-        
-        # Restore parent scene
         parent_data = parent_context["data"]
+        subsystem_id = parent_context["subsystem_model"].id
+        
+        # 3. Update the SubGraph block in the PARENT data with new internal data
+        # We must find the block data that corresponds to the subsystem we are leaving
+        found = False
+        for block_data in parent_data.get("blocks", []):
+            if block_data.get("id") == subsystem_id:
+                block_data["internal_blocks_data"] = current_subsystem_data["blocks"]
+                block_data["internal_connections_data"] = current_subsystem_data["connections"]
+                found = True
+                break
+                
+        if not found:
+            print(f"Warning: Could not find original SubGraph block (ID: {subsystem_id}) in parent data.")
+
+        # 4. Restore parent scene from the UPDATED data
+        # This creates NEW block instances, so the old subsystem_model reference is indeed obsolete
         self._load_scene_data(parent_data)
         
-        # Update UI for the subsystem block to reflect new ports
+        # 5. Refresh I/O ports for SubGraphs to reflect any changes made inside
+        # We do this for all SubGraphs because we don't track the new ID mapping easily, 
+        # and it's a cheap operation.
         for ui_block in self.blocks_ui:
-            if ui_block.model == parent_context["subsystem_model"]:
+            if ui_block.model.__class__.__name__ == "SubGraph":
+                ui_block.model.refresh_io_ports()
                 ui_block.refresh_ports()
-                break
         
         self.subsystem_stack.pop()
         self._update_breadcrumb()

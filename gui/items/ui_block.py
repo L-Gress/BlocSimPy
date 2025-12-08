@@ -171,14 +171,19 @@ class UIBlock(QGraphicsItem):
         """Handle double-click to open editor or enter subsystem."""
         # Check specifically for "SubGraph" class name
         if self.model.__class__.__name__ == "SubGraph":
-            scene = self.scene()
-            if scene:
-                views = scene.views()
-                if views:
-                    main_window = views[0].parent() 
-                    if hasattr(main_window, "enter_subsystem"):
-                        main_window.enter_subsystem(self)
-                        return
+            # If Ctrl is pressed, skip entering subsystem -> open properties dialog
+            modifiers = event.modifiers()
+            if modifiers & Qt.ControlModifier:
+                 pass # Fall through to open editor
+            else:
+                scene = self.scene()
+                if scene:
+                    views = scene.views()
+                    if views:
+                        main_window = views[0].parent() 
+                        if hasattr(main_window, "enter_subsystem"):
+                            main_window.enter_subsystem(self)
+                            return
 
         # Open parameter editor if available
         if hasattr(self.model, 'get_editor_dialog'):

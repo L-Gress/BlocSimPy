@@ -7,10 +7,10 @@ class SubGraph(BlockModel):
     """
     
     BLOCK_INFO = {
-        "description": "Container block holding internal block diagram",
-        "parameters": "BlockName",
-        "formula": "Executes internal diagram during simulation",
-        "usage": "Organize complex systems, create reusable components, manage hierarchy. Double-click to enter/edit"
+        "description": "Container block with custom interface/variables",
+        "parameters": "BlockName + Custom Variables",
+        "formula": "Executes internal diagram with variable substitution ($VarName)",
+        "usage": "Double-click to enter. Ctrl+Double-click to edit variables. Use $VarName in internal blocks."
     }
     
     def __init__(self):
@@ -81,11 +81,29 @@ class SubGraph(BlockModel):
         self.execution_map = {}
         
         # Instantiate Internal Blocks
+        
+        # 0. Robustness: Scan for required variables that might be missing from params
+        # This prevents crashes if the user forgot to define 'Amplitude' but used '$Amplitude'
+        for b_data in self.internal_blocks_data:
+            for p_val in b_data.get("params", {}).values():
+                if isinstance(p_val, str) and p_val.strip().startswith("$"):
+                    var_name = p_val.strip()[1:]
+                    if var_name and var_name not in self.params:
+                        # Auto-define with default 0.0
+                        self.params[var_name] = 0.0
+
         for b_data in self.internal_blocks_data:
             b_type = b_data["type"]
             if b_type in BLOCK_REGISTRY:
                 instance = BLOCK_REGISTRY[b_type]()
-                instance.params = b_data["params"]
+                instance.params = b_data["params"].copy()  # Copy to avoid mutating blueprint
+                
+                # Variable Substitution: Replace "$Var" with value from self.params
+                for p_key, p_val in instance.params.items():
+                    if isinstance(p_val, str) and p_val.strip().startswith("$"):
+                        var_name = p_val.strip()[1:]
+                        if var_name in self.params:
+                            instance.params[p_key] = self.params[var_name]
                 if hasattr(instance, "reset"):
                     instance.reset()
                 
@@ -98,8 +116,8 @@ class SubGraph(BlockModel):
 
         # Restore Internal Connections
         for c_data in self.internal_connections_data:
-            source = self.execution_map.get(c_data["from_id"])
-            target = self.execution_map.get(c_data["to_id"])
+            source = self.execution_map.get(c_data["from_block_id"])
+            target = self.execution_map.get(c_data["to_block_id"])
             if source and target:
                 out_p = source.outputs.get(c_data["from_port"])
                 in_p = target.inputs.get(c_data["to_port"])
@@ -131,5 +149,116 @@ class SubGraph(BlockModel):
             if getattr(b, 'is_subsystem_output', False):
                 p_name = b.params.get("PortName")
                 if p_name in self.outputs:
-                    if "in" in b.inputs:
                         self.outputs[p_name].value = b.inputs["in"].value
+
+    def get_editor_dialog(self, parent=None):
+        """Custom dialog to edit SubGraph parameters and variables."""
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
+                                       QTableWidget, QTableWidgetItem, 
+                                       QPushButton, QLabel, QLineEdit, 
+                                       QDialogButtonBox, QHeaderView, QWidget, QMessageBox)
+        from PySide6.QtCore import Qt
+
+        dialog = QDialog(parent)
+        dialog.setWindowTitle("SubGraph Interface Editor")
+        dialog.resize(500, 400)
+        
+        layout = QVBoxLayout(dialog)
+
+        # --- Top Section: Name ---
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Block Name:"))
+        name_edit = QLineEdit(self.params.get("BlockName", "MySubGraph"))
+        name_layout.addWidget(name_edit)
+        layout.addLayout(name_layout)
+        
+        # --- Middle Section: Parameters Table ---
+        layout.addWidget(QLabel("<b>Custom Variables:</b>"))
+        layout.addWidget(QLabel("Define variables here. Use them inside as <i>$VariableName</i>."))
+        
+        table = QTableWidget()
+        table.setColumnCount(2)
+        table.setHorizontalHeaderLabels(["Name", "Value"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        layout.addWidget(table)
+        
+        def add_row(key="", val=""):
+            row = table.rowCount()
+            table.insertRow(row)
+            table.setItem(row, 0, QTableWidgetItem(str(key)))
+            table.setItem(row, 1, QTableWidgetItem(str(val)))
+            
+        # Populate existing (excluding BlockName)
+        for k, v in self.params.items():
+            if k == "BlockName": continue
+            add_row(k, v)
+        
+        # If empty, add a placeholder example? No, cleaner to leave empty.
+        
+        # --- Buttons ---
+        btn_layout = QHBoxLayout()
+        btn_add = QPushButton("Add Variable")
+        btn_remove = QPushButton("Remove Selected")
+        btn_layout.addWidget(btn_add)
+        btn_layout.addWidget(btn_remove)
+        layout.addLayout(btn_layout)
+        
+        def on_add():
+            add_row("NewVar", "0.0")
+            
+        def on_remove():
+            rows = sorted(set(index.row() for index in table.selectedIndexes()), reverse=True)
+            for r in rows:
+                table.removeRow(r)
+                
+        btn_add.clicked.connect(on_add)
+        btn_remove.clicked.connect(on_remove)
+        
+        # --- Dialog Buttons ---
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.accepted.connect(dialog.accept)
+        btns.rejected.connect(dialog.reject)
+        layout.addWidget(btns)
+        
+        original_accept = dialog.accept
+        
+        def save_and_accept():
+            # 1. Validate
+            new_params = {}
+            new_params["BlockName"] = name_edit.text().strip()
+            
+            for i in range(table.rowCount()):
+                key_item = table.item(i, 0)
+                val_item = table.item(i, 1)
+                
+                if key_item and val_item:
+                    key = key_item.text().strip()
+                    val_str = val_item.text().strip()
+                    
+                    if not key:
+                        continue
+                        
+                    if key == "BlockName":
+                        QMessageBox.warning(dialog, "Invalid Name", "'BlockName' is reserved.")
+                        return
+
+                    # Try float conversion
+                    try:
+                        val = float(val_str)
+                    except ValueError:
+                        val = val_str
+                        
+                    new_params[key] = val
+            
+            # 2. Update self.params
+            self.params = new_params
+            
+            # 3. Trigger updates
+            if hasattr(self, "_update_label"):
+                self._update_label()
+                
+            original_accept()
+
+        dialog.accept = save_and_accept
+        
+        return dialog
