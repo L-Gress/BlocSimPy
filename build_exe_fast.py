@@ -80,6 +80,10 @@ def build_executable():
         # Add data files
         "--add-data=config;config",
         "--add-data=user_library;user_library",
+        "--add-data=logo.png;.",
+        
+        # Icon
+        "--icon=logo.png",
         
         # EXCLUDE heavy packages that bloat build time and file size
         "--exclude-module=torch",

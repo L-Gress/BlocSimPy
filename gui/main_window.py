@@ -1,6 +1,9 @@
 """Main window orchestrator - delegates to managers."""
+import os
+import sys
 from PySide6.QtWidgets import QMainWindow, QLabel, QWidget, QVBoxLayout
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from config.ui_config import UIConfig
 from .scene import NodeScene
 from .widgets import GraphicsView
@@ -20,6 +23,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(UIConfig.WINDOW_TITLE)
         self.resize(UIConfig.WINDOW_WIDTH, UIConfig.WINDOW_HEIGHT)
+        
+        # Set Window Icon
+        logo_path = "logo.png"
+        if hasattr(sys, '_MEIPASS'):
+            logo_path = os.path.join(sys._MEIPASS, "logo.png")
+            
+        if os.path.exists(logo_path):
+            self.setWindowIcon(QIcon(logo_path))
         
         # --- Initialize Managers ---
         self.scene_manager = SceneManager(self)
