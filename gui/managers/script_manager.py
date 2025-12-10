@@ -19,6 +19,7 @@ class ScriptManager:
         
     def show_editor(self):
         """Show the script editor dialog."""
+        # Use absolute import matching the new cleanup
         from ..dialogs import ScriptEditorDialog
         dialog = ScriptEditorDialog(self.main_window, self)
         dialog.exec()

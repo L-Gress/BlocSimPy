@@ -1,5 +1,7 @@
 from .sine_wave import SineWave
 from .gain import Gain
+from .sine_wave import SineWave
+from .gain import Gain
 from .sum_block import Sum
 from .integrator import Integrator
 from .lookup_table import LookupTable
@@ -15,26 +17,29 @@ from .divide import Divide
 from .input_port import InputPort
 from .output_port import OutputPort
 from .subgraph import SubGraph
+from .audio_input import AudioInput
+from .audio_output import AudioOutput
+from .delay import Delay
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
-    "Gain": Gain,
-    "Sum": Sum,
-    "Integrator": Integrator,
-    "LookupTable": LookupTable,
-    "Scope": Scope,
     "Constant": Constant,
+    "Gain": Gain,
+    "Integrator": Integrator,
     "TransferFunction": TransferFunction,
     "PID": PID,
+    "Scope": Scope,
     "Clock": Clock,
-    "IfElse": IfElse,
-    "LogicalOperator": LogicalOperator,
+    "LookupTable": LookupTable,
+    "Sum": Sum,
     "Product": Product,
     "Divide": Divide,
+    "LogicalOperator": LogicalOperator,
+    "IfElse": IfElse,
+    "SubGraph": SubGraph,
     "InputPort": InputPort,
     "OutputPort": OutputPort,
-    "SubGraph": SubGraph,
-
+    "AudioInput": AudioInput,
+    "AudioOutput": AudioOutput,
+    "Delay": Delay
 }
-
-

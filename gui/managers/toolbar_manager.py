@@ -2,8 +2,11 @@
 from PySide6.QtWidgets import QToolBar, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from ..dialogs import SimulationSettingsDialog
+from ..dialogs import SimulationSettingsDialog, DeployDialog, DeploymentManagerDialog
 from engine.simulation import SimulationEngine
+from engine.serialization import GraphSerializer
+import urllib.request
+import json
 
 
 class ToolbarManager:
@@ -21,13 +24,21 @@ class ToolbarManager:
         self.toolbar.setMovable(False)
         
         # Simulation actions
-        action_sim = QAction("⚙ Simulation Settings", self.main_window)
+        action_sim = QAction("⚙ Settings", self.main_window)
         action_sim.triggered.connect(self._show_sim_settings)
         self.toolbar.addAction(action_sim)
         
         action_run = QAction("▶ Run", self.main_window)
         action_run.triggered.connect(self.run_simulation)
         self.toolbar.addAction(action_run)
+        
+        action_deploy = QAction("🚀 Deploy", self.main_window)
+        action_deploy.triggered.connect(self.deploy_simulation)
+        self.toolbar.addAction(action_deploy)
+
+        action_manage = QAction("📡 Manage", self.main_window)
+        action_manage.triggered.connect(self.show_deployment_manager)
+        self.toolbar.addAction(action_manage)
         
         self.toolbar.addSeparator()
         
@@ -90,10 +101,22 @@ class ToolbarManager:
                 self.sim_dt = dt
     
     def run_simulation(self):
-        """Run the simulation using the SimulationEngine."""
+        """Run the simulation locally."""
         if not self.main_window.scene_manager.blocks_ui:
             QMessageBox.warning(self.main_window, "No Blocks", "Add blocks to the scene first.")
             return
+
+        # Check for Audio Blocks
+        for ui_block in self.main_window.scene_manager.blocks_ui:
+            name = ui_block.model.__class__.__name__
+            if name in ["AudioInput", "AudioOutput"]:
+                QMessageBox.critical(
+                    self.main_window, 
+                    "Simulation Error", 
+                    "Cannot Run local simulation with Audio blocks.\n"
+                    "Please use 'Deploy' instead."
+                )
+                return
         
         # Create simulation engine
         engine = SimulationEngine()
@@ -124,3 +147,59 @@ class ToolbarManager:
             "Simulation finished successfully.\n\n"
             "Double-click any Scope block to view its data."
         )
+
+    def deploy_simulation(self):
+        """Deploy the current graph to the Realtime Server."""
+        # 1. Check if we are inside a subsystem
+        if not self.main_window.scene_manager.subsystem_stack:
+            QMessageBox.warning(self.main_window, "Deploy Error", "You must be inside a SubGraph (Subsystem) to deploy.")
+            return
+
+        # 2. Check for InputPorts (Must be absent)
+        has_inputs = False
+        for ui_block in self.main_window.scene_manager.blocks_ui:
+            if ui_block.model.__class__.__name__ == "InputPort":
+                has_inputs = True
+                break
+        
+        if has_inputs:
+            QMessageBox.warning(
+                self.main_window, 
+                "Deploy Error", 
+                "Cannot deploy a SubGraph that has Input Ports.\n"
+                "The deployed graph must be self-contained or use Audio Inputs."
+            )
+            return
+
+        # 3. Check blocks exist
+        if not self.main_window.scene_manager.blocks_ui:
+            return
+
+        # 4. Open Deploy Dialog
+        dialog = DeployDialog(self.main_window)
+        if dialog.exec():
+            settings = dialog.get_settings()
+            
+            # Serialize
+            graph_data = GraphSerializer.serialize_graph(self.main_window.scene_manager.blocks_ui)
+            
+            payload = {
+                "graph": graph_data,
+                "config": settings
+            }
+            
+            # Send to Server
+            try:
+                url = settings["url"] + "/deploy"
+                data = json.dumps(payload).encode('utf-8')
+                req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+                with urllib.request.urlopen(req) as f:
+                    resp = f.read().decode('utf-8')
+                    QMessageBox.information(self.main_window, "Deploy Success", f"Server responded: {resp}")
+            except Exception as e:
+                QMessageBox.critical(self.main_window, "Deploy Failed", f"Could not connect to server:\n{str(e)}")
+
+    def show_deployment_manager(self):
+        """Show the deployment manager dialog."""
+        dialog = DeploymentManagerDialog(self.main_window)
+        dialog.exec()

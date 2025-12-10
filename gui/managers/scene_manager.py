@@ -23,8 +23,11 @@ class SceneManager:
         self.breadcrumb_label = None
         
     def add_block_to_scene(self, list_item):
-        """Add a block from the library to the scene."""
-        block_class_name = list_item.text()
+        """Add a block from the library to the scene (ListWidget version)."""
+        self.add_block_by_name(list_item.text())
+
+    def add_block_by_name(self, block_class_name):
+        """Add a block from the library to the scene by string name."""
         if block_class_name in BLOCK_REGISTRY:
             new_block = BLOCK_REGISTRY[block_class_name]()
             ui_block = UIBlock(new_block)
