@@ -11,3 +11,7 @@ __pycache__/
 # Python egg files
 *.egg-info/
 *.egg
+
+*.json
+*.csv
+

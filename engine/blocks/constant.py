@@ -1,6 +1,5 @@
 from ..models import BlockModel
 
-
 class Constant(BlockModel):
     """Outputs a constant value."""
     
@@ -15,10 +14,42 @@ class Constant(BlockModel):
         super().__init__("Constant")
         self.add_output("out")
         self.add_param("Value", 1.0)
+        
+        # Initial label update
+        self._update_label()
+
+    def _update_label(self):
+        """Format the name based on the current constant value."""
+        try:
+            val = self.params.get("Value", 1.0)
+            # Display just the number (e.g. "5.0") or use "C = 5.0" if preferred
+            self.name = f"{val}"
+        except:
+            self.name = f"{self.params.get('Value', '?')}"
 
     def compute(self, t, dt):
-        val = float(self.params["Value"])
+        try:
+            val = float(self.params["Value"])
+        except:
+            val = 0.0
+
         self.outputs["out"].value = val
+        
+        # Check if the label matches the actual parameter during simulation
+        # (Fallback self-correction like the Gain block)
+        if str(val) != self.name:
+             self._update_label()
+
+    # --- Catch when the params dictionary is replaced (e.g., JSON load) ---
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name == "params" and hasattr(self, "_update_label"):
+            self._update_label()
+
+    # --- Catch when the object is loaded via Pickle ---
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._update_label()
 
     def get_editor_dialog(self, parent=None):
         """Return generic parameter editor dialog."""
@@ -43,15 +74,15 @@ class Constant(BlockModel):
 
         def accept_with_save():
             for key, le in widgets.items():
-                old_val = self.params[key]
                 new_str = le.text()
                 try:
-                    if isinstance(old_val, float) or isinstance(old_val, int):
-                        self.params[key] = float(new_str)
-                    else:
-                        self.params[key] = new_str
-                except:
+                    # Try to convert to float, otherwise keep as string
+                    self.params[key] = float(new_str)
+                except ValueError:
                     self.params[key] = new_str
+            
+            # Update label on manual edit
+            self._update_label()
             original_accept()
 
         dialog.accept = accept_with_save

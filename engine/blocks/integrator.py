@@ -1,51 +1,67 @@
 from ..models import BlockModel
-import numpy as np
-
 
 class Integrator(BlockModel):
     """Integrator block - integrates signal over time."""
     
     BLOCK_INFO = {
-        "description": "Integrates input signal over time using Euler method",
+        "description": "Integrates input signal over time (Euler method)",
         "parameters": "Initial Condition",
-        "formula": "Output(t) = IC + ∫Input(τ)dτ from 0 to t",
+        "formula": "Output(t) = IC + ∫Input(τ)dτ",
         "usage": "Accumulate values, model dynamic systems, or implement controllers"
     }
     
     def __init__(self):
-        super().__init__("1/s")
+        super().__init__("Integrator")
         self.add_input("in")
         self.add_output("out")
         self.add_param("InitialCondition", 0.0)
-        self.state = np.array([0.0])
+        
+        self.state = 0.0
         self.initialized = False
+        
+        # Set a nice label
+        self.name = "∫"
 
     def compute(self, t, dt):
+        # 1. Initialization Logic
         if not self.initialized:
-            self.state[0] = float(self.params["InitialCondition"])
+            try:
+                self.state = float(self.params["InitialCondition"])
+            except:
+                self.state = 0.0
             self.initialized = True
-        self.outputs["out"].value = self.state[0]
 
-    def update_state(self, t, dt):
-        derivative = self.inputs["in"].value
-        self.state[0] += derivative * dt
+        # 2. Set the Output (Send current memory to the wire)
+        self.outputs["out"].value = self.state
+
+        # 3. Calculate the State for the NEXT loop (The fix!)
+        # Check if input is connected
+        inp = 0.0
+        if "in" in self.inputs:
+            inp = float(self.inputs["in"].value)
+            
+        # Perform the integration (Euler: New = Old + Input * TimeStep)
+        self.state += inp * dt
 
     def reset(self):
+        """Reset state to Initial Condition on stop/start."""
         self.initialized = False
+        try:
+            self.state = float(self.params.get("InitialCondition", 0.0))
+        except:
+            self.state = 0.0
 
     def get_editor_dialog(self, parent=None):
-        """Return generic parameter editor dialog."""
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox
 
         dialog = QDialog(parent)
-        dialog.setWindowTitle(f"Edit {self.name}")
+        dialog.setWindowTitle("Edit Integrator")
         layout = QFormLayout(dialog)
-        widgets = {}
-
-        for key, val in self.params.items():
-            le = QLineEdit(str(val))
-            layout.addRow(key, le)
-            widgets[key] = le
+        
+        # Initial Condition Input
+        val = self.params.get("InitialCondition", 0.0)
+        le = QLineEdit(str(val))
+        layout.addRow("Initial Condition:", le)
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(dialog.accept)
@@ -55,16 +71,13 @@ class Integrator(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            for key, le in widgets.items():
-                old_val = self.params[key]
-                new_str = le.text()
-                try:
-                    if isinstance(old_val, float) or isinstance(old_val, int):
-                        self.params[key] = float(new_str)
-                    else:
-                        self.params[key] = new_str
-                except:
-                    self.params[key] = new_str
+            try:
+                self.params["InitialCondition"] = float(le.text())
+            except ValueError:
+                self.params["InitialCondition"] = 0.0
+            
+            # Reset immediately so the change takes effect if simulation is stopped
+            self.reset()
             original_accept()
 
         dialog.accept = accept_with_save

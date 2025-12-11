@@ -20,6 +20,9 @@ from .subgraph import SubGraph
 from .audio_input import AudioInput
 from .audio_output import AudioOutput
 from .delay import Delay
+from .abs import Abs
+from .max import Max
+from .min import Min
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -41,5 +44,9 @@ BLOCK_REGISTRY = {
     "OutputPort": OutputPort,
     "AudioInput": AudioInput,
     "AudioOutput": AudioOutput,
-    "Delay": Delay
+    "Delay": Delay,
+    "Abs": Abs,
+    "Max": Max,
+    "Min": Min,
+
 }
