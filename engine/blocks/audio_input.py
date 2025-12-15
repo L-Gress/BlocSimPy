@@ -91,7 +91,8 @@ class AudioInput(BlockModel):
         "description": "Captures realtime audio input",
         "parameters": "Channel, Device",
         "formula": "Output = AudioStream[Channel]",
-        "usage": "Double-click to configure."
+        "usage": "Double-click to configure.",
+        "category": "IO"
     }
     
     def __init__(self):

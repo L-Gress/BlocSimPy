@@ -34,6 +34,8 @@ class BlockModel:
         self.outputs: Dict[str, PortModel] = {}
         self.params: Dict[str, Any] = {}
         self.state: np.ndarray = np.array([])
+        self.is_container = False
+        self.category = "Common"
 
     def add_input(self, name):
         self.inputs[name] = PortModel(self, name, True)

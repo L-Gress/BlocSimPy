@@ -8,10 +8,12 @@ import uuid
 import numpy as np
 import traceback
 import sounddevice as sd
-
-
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Add parent directory to path to allow importing 'engine'
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 
 from engine.blocks import BLOCK_REGISTRY
 from engine.simulation.executor import ExecutionOrdering
@@ -118,6 +120,64 @@ class AudioProcessor:
             
         self.time = current_t
 
+class TimerProcessor:
+    """Runs simulation based on system clock (independent of audio hardware)."""
+    def __init__(self, blocks, rate, steps_per_batch=1):
+        self.blocks = blocks
+        self.dt = 1.0 / rate
+        self.rate = rate
+        self.time = 0.0
+        self.steps_per_batch = steps_per_batch
+        self.sorted_blocks = ExecutionOrdering.topological_sort(self.blocks)
+        
+        # Determine strict sleep time
+        self.target_interval = self.dt * self.steps_per_batch
+        
+        self.running = False
+        self.thread = None
+        
+    def start(self):
+        self.running = True
+        self.thread = threading.Thread(target=self._run_loop)
+        self.thread.start()
+        
+    def stop(self):
+        self.running = False
+        if self.thread:
+            self.thread.join()
+            
+    def close(self):
+        self.stop()
+
+    def _run_loop(self):
+        print(f"Timer Processor Started: {self.rate}Hz (Batch={self.steps_per_batch})", flush=True)
+        next_run = time.time()
+        
+        while self.running:
+            now = time.time()
+            if now >= next_run:
+                # Catch up logic? No, simple skip if too slow
+                # Execute Batch
+                for _ in range(self.steps_per_batch):
+                    for block in self.sorted_blocks:
+                        block.compute(self.time, self.dt)
+                        if hasattr(block, 'update_state'):
+                            block.update_state(self.time, self.dt)
+                    self.time += self.dt
+                
+                next_run += self.target_interval
+                
+                # If we're really far behind, reset
+                if time.time() > next_run + 1.0:
+                    next_run = time.time()
+            else:
+                sleep_time = next_run - now
+                if sleep_time > 0.001:
+                    time.sleep(sleep_time)
+
+    # Mock stream interface for compatibility
+    def is_active(self): return self.running
+
 class RequestHandler(http.server.BaseHTTPRequestHandler):
     
     def log_message(self, format, *args):
@@ -166,100 +226,80 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
         if self.path == "/deploy":
             try:
                 config = data.get("config", {})
-                sample_rate = int(config.get("sample_rate", 44100))
-                buffer_size = int(config.get("buffer_size", 1024))
+                
+                # Generic Parameters
                 graph_name = data.get("name", "Deployment")
+                mode = config.get("execution_mode", "Auto Detect")
                 
-                print(f"  Deploying: {graph_name} (Rate={sample_rate}, Buffer={buffer_size})", flush=True)
-                
-                # --- Debug: Dump Graph JSON ---
-                # print(f"  [DEBUG] Graph Data: {json.dumps(data['graph'], indent=2)}", flush=True)
-
+                # Instantiate Graph
                 blocks = instantiate_graph(data["graph"])
                 
-                # --- Debug: List Blocks & Connections ---
-                print("  [DEBUG] Instantiated Blocks:", flush=True)
-                for b in blocks:
-                    print(f"    - {b.__class__.__name__} (ID={b.id if hasattr(b,'id') else '?'}) Params={b.params}", flush=True)
-
-                print("  [DEBUG] Connection Logic:", flush=True)
-                for b in blocks:
-                    for name, port in b.inputs.items():
-                        if port.connected_port:
-                            p_curr = f"{b.__class__.__name__}.{name}"
-                            # Try to find owner of connected port
-                            # This is reverse lookup just for debug print
-                            connected_block_name = "Unknown"
-                            for other in blocks:
-                                for oname, oport in other.outputs.items():
-                                    if oport == port.connected_port:
-                                        connected_block_name = f"{other.__class__.__name__}.{oname}"
-                            print(f"    Link: {connected_block_name} -> {p_curr}", flush=True)
+                # Determine Execution Mode
+                has_audio_io = any(b.__class__.__name__ in ["AudioInput", "AudioOutput"] for b in blocks)
                 
-                # --- Debug: List Blocks ---
-                print("  [DEBUG] Instantiated Blocks:", flush=True)
-                for b in blocks:
-                    b_id = getattr(b, 'id', 'unknown') # BlockModel might not store ID by default unless added
-                    # Actually graph_data['blocks'] had IDs. instantiate_graph uses them but might not set attribute on instance?
-                    # instantiate_graph (line 46) does: id_map[instance_id] = instance. It doesn't set instance.id = instance_id usually.
-                    # Let's check instantiate_graph implementation in previous turn. 
-                    # It does NOT set instance.id.
+                final_mode = "Timer"
+                if mode == "Audio Driven":
+                    final_mode = "Audio"
+                elif mode == "Auto Detect":
+                    final_mode = "Audio" if has_audio_io else "Timer"
+                
+                # --- AUDIO MODE ---
+                if final_mode == "Audio":
+                    sample_rate = int(config.get("sample_rate", 44100))
+                    buffer_size = int(config.get("buffer_size", 1024))
                     
-                    # Just print class name and params
-                    print(f"    - {b.__class__.__name__}: {b.params}", flush=True)
-                
-                # --- Device Selection Logic ---
-                in_device = None
-                out_device = None
-                
-                def parse_device(val):
-                    if not val or val == "default": return None
-                    try: return int(val)
-                    except ValueError: return val # Return valid string
-                
-                for b in blocks:
-                    if b.__class__.__name__ == "AudioInput":
-                        dev_param = b.params.get("Device")
-                        parsed = parse_device(dev_param)
-                        if parsed is not None:
-                            if in_device is not None and in_device != parsed:
-                                print(f"  Warning: Conflicting Input Devices ({in_device} vs {parsed}). Using {in_device}.", flush=True)
-                            else:
-                                in_device = parsed
-                                
-                    elif b.__class__.__name__ == "AudioOutput":
-                        dev_param = b.params.get("Device")
-                        parsed = parse_device(dev_param)
-                        if parsed is not None:
-                            if out_device is not None and out_device != parsed:
-                                print(f"  Warning: Conflicting Output Devices ({out_device} vs {parsed}). Using {out_device}.", flush=True)
-                            else:
-                                out_device = parsed
-                
-                print(f"  Selected Devices -> In: {in_device}, Out: {out_device}", flush=True)
-                
-                processor = AudioProcessor(blocks, sample_rate)
-                
-                stream = sd.Stream(
-                    channels=2, 
-                    samplerate=sample_rate,
-                    blocksize=buffer_size,
-                    callback=processor.callback,
-                    device=(in_device, out_device)
-                )
-                
-                dep_id = str(uuid.uuid4())[:8] 
-                
-                with server_lock:
-                    deployments[dep_id] = {
-                        "stream": stream,
-                        "processor": processor,
-                        "config": config,
-                        "name": graph_name,
-                        "status": "Running"
-                    }
-                    stream.start()
-                
+                    print(f"  Deploying [Audio Driver]: {graph_name} (Rate={sample_rate}, Buffer={buffer_size})", flush=True)
+                    
+                    # Device Selection (Existing Logic simplified)
+                    in_device = None; out_device = None
+                    try:
+                        for b in blocks:
+                            dev = b.params.get("Device")
+                            if not dev or dev == "default": continue
+                            try: val = int(dev)
+                            except: val = dev
+                            if b.__class__.__name__ == "AudioInput": in_device = val
+                            elif b.__class__.__name__ == "AudioOutput": out_device = val
+                    except: pass
+                    
+                    # Create Processor
+                    processor = AudioProcessor(blocks, sample_rate)
+                    stream = sd.Stream(channels=2, samplerate=sample_rate, blocksize=buffer_size,
+                                     callback=processor.callback, device=(in_device, out_device))
+                    
+                    dep_id = str(uuid.uuid4())[:8]
+                    with server_lock:
+                        deployments[dep_id] = {
+                            "type": "audio",
+                            "stream": stream, 
+                            "processor": processor,
+                            "config": config,
+                            "name": graph_name,
+                            "status": "Running"
+                        }
+                        stream.start()
+                        
+                # --- TIMER MODE ---
+                else:
+                    rate = int(config.get("sample_rate", 100)) # Default 100Hz for timer
+                    batch = int(config.get("buffer_size", 1))  # Default 1 step per loop
+                    
+                    print(f"  Deploying [Timer Driver]: {graph_name} (Rate={rate}Hz, Batch={batch})", flush=True)
+                    
+                    processor = TimerProcessor(blocks, rate, batch)
+                    
+                    dep_id = str(uuid.uuid4())[:8]
+                    with server_lock:
+                        deployments[dep_id] = {
+                            "type": "timer",
+                            "stream": processor, # Interface match
+                            "processor": processor,
+                            "config": config,
+                            "name": graph_name,
+                            "status": "Running"
+                        }
+                        processor.start()
+
                 print(f"  -> Success: {dep_id}", flush=True)
                 self._send_json({"id": dep_id, "message": "Deployed successfully"})
                 
@@ -295,7 +335,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                             
                     elif action == "delete":
                         stream.stop()
-                        stream.close()
+                        if hasattr(stream, 'close'): stream.close()
                         del deployments[dep_id]
                         print(f"  Deleted {dep_id}", flush=True)
                         

@@ -102,7 +102,8 @@ class AudioOutput(BlockModel):
         "description": "Sends signal to realtime audio output",
         "parameters": "Channel, Device",
         "formula": "AudioStream[Channel] = Input",
-        "usage": "Double-click to configure."
+        "usage": "Double-click to configure.",
+        "category": "IO"
     }
     
     def __init__(self):

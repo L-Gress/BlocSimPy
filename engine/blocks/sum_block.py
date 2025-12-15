@@ -8,7 +8,8 @@ class Sum(BlockModel):
         "description": "Adds or subtracts multiple input signals",
         "parameters": "Signs (comma-separated +/- for each input)",
         "formula": "Output = ±Input1 ± Input2 ± ...",
-        "usage": "Combine signals, implement feedback loops, or calculate errors"
+        "usage": "Combine signals, implement feedback loops, or calculate errors",
+        "category": "Math"
     }
     
     def __init__(self):

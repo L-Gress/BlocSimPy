@@ -10,7 +10,8 @@ class Clock(BlockModel):
         "description": "Outputs current simulation time",
         "parameters": "None",
         "formula": "Output = t (simulation time)",
-        "usage": "Time-dependent logic, scheduling, or time-varying systems"
+        "usage": "Time-dependent logic, scheduling, or time-varying systems",
+        "category": "Sources"
     }
     
     def __init__(self):

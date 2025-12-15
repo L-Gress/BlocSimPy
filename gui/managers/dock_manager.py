@@ -64,38 +64,36 @@ class DockManager:
         return self.library_dock
     
     def _populate_library(self):
-        """Populate the block tree with categories."""
-        categories = {
-            "Deployable I/O": ["AudioInput", "AudioOutput"],
-            "Structure": ["SubGraph", "InputPort", "OutputPort"],
-            "Standard Blocks": [] # Everything else
-        }
+        """Populate the block tree with categories from BLOCK_INFO."""
         
-        # Fill Standard Blocks
-        defined_specials = set(categories["Deployable I/O"] + categories["Structure"])
+        # Default categorized structure
+        category_map = {}
         
-        for name in sorted(BLOCK_REGISTRY.keys()):
-            if name not in defined_specials:
-                categories["Standard Blocks"].append(name)
+        for name, block_cls in BLOCK_REGISTRY.items():
+            # Get category from BLOCK_INFO, default to "Common"
+            category = "Common"
+            if hasattr(block_cls, "BLOCK_INFO"):
+                category = block_cls.BLOCK_INFO.get("category", "Common")
+            
+            if category not in category_map:
+                category_map[category] = []
+            category_map[category].append(name)
         
         # Create Tree Items
         self.block_tree.clear()
         
-        # Helper to add category
-        def add_category(cat_name, block_names):
-            if not block_names: return
+        # Sort categories (Common last or first? Alphabetical seems fine)
+        sorted_cats = sorted(category_map.keys())
+        # Ensure Common/Standard is last if you prefer
+        
+        for cat_name in sorted_cats:
             cat_item = QTreeWidgetItem(self.block_tree)
             cat_item.setText(0, cat_name)
             cat_item.setExpanded(True)
             
-            for b_name in sorted(block_names):
+            for b_name in sorted(category_map[cat_name]):
                 b_item = QTreeWidgetItem(cat_item)
                 b_item.setText(0, b_name)
-                
-        # Add special categories first
-        add_category("Deployable I/O", categories["Deployable I/O"])
-        add_category("Structure", categories["Structure"])
-        add_category("Standard Blocks", categories["Standard Blocks"])
         
     def _on_tree_double_click(self, item, column):
         """Handle tree double click - if leaf node, add block."""

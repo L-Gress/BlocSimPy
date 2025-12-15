@@ -76,7 +76,8 @@ class DeploymentManagerDialog(QDialog):
                 self.table.setItem(row, 1, QTableWidgetItem(dep.get("name")))
                 self.table.setItem(row, 2, QTableWidgetItem(dep.get("status")))
                 
-                config_str = f"Rate: {dep.get('config', {}).get('sample_rate')}"
+                config = dep.get('config', {})
+                config_str = f"{config.get('execution_mode', 'Audio')} | Rate: {config.get('sample_rate')}"
                 self.table.setItem(row, 3, QTableWidgetItem(config_str))
                 
         except Exception as e:

@@ -1,7 +1,5 @@
 from .sine_wave import SineWave
 from .gain import Gain
-from .sine_wave import SineWave
-from .gain import Gain
 from .sum_block import Sum
 from .integrator import Integrator
 from .lookup_table import LookupTable
@@ -48,5 +46,4 @@ BLOCK_REGISTRY = {
     "Abs": Abs,
     "Max": Max,
     "Min": Min,
-
 }

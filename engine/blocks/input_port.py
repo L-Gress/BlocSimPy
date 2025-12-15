@@ -9,8 +9,9 @@ class InputPort(BlockModel):
     BLOCK_INFO = {
         "description": "Creates external input port for SubGraphs",
         "parameters": "PortName",
-        "formula": "Forwards external input to SubGraph internals",
-        "usage": "Only used inside SubGraphs to define interface inputs"
+        "formula": "For Subsystems: Passes data from outside to inside",
+        "usage": "Place inside a SubSystem to create an external input pin",
+        "category": "Structure"
     }
     
     def __init__(self):

@@ -222,7 +222,8 @@ class Scope(BlockModel):
         "description": "Records and displays signal data over time with interactive viewer",
         "parameters": "Number of inputs (1-20)",
         "formula": "Records all input signals during simulation",
-        "usage": "Visualize signals, debug systems, analyze results. Double-click after simulation to view data"
+        "usage": "Visualize signals, debug systems, analyze results. Double-click after simulation to view data",
+        "category": "Sinks"
     }
     
     def __init__(self):

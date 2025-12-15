@@ -6,8 +6,9 @@ class OutputPort(BlockModel):
     BLOCK_INFO = {
         "description": "Creates external output port for SubGraphs",
         "parameters": "PortName",
-        "formula": "Forwards SubGraph internal signal to external output",
-        "usage": "Only used inside SubGraphs to define interface outputs"
+        "formula": "For Subsystems: Passes data from inside to outside",
+        "usage": "Place inside a SubSystem to create an external output pin",
+        "category": "Structure"
     }
     
     def __init__(self):

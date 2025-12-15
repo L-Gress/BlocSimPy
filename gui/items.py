@@ -391,8 +391,8 @@ class UIBlock(QGraphicsItem):
                     pass
 
     def mouseDoubleClickEvent(self, event):
-        # Check specifically for "SubGraph" class name
-        if self.model.__class__.__name__ == "SubGraph":
+        # Check for container blocks (like SubGraph)
+        if getattr(self.model, "is_container", False):
             scene = self.scene()
             if scene:
                 views = scene.views()

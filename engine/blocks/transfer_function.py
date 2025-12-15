@@ -11,7 +11,8 @@ class TransferFunction(BlockModel):
         "description": "Implements continuous transfer function H(s) = N(s)/D(s)",
         "parameters": "Numerator coefficients, Denominator coefficients (comma-separated)",
         "formula": "Uses discrete approximation with Tustin/bilinear transformation",
-        "usage": "Model linear systems, filters, controllers (PID, lead-lag, etc.)"
+        "usage": "Model linear systems, filters, controllers (PID, lead-lag, etc.)",
+        "category": "Signal"
     }
     
     def __init__(self):

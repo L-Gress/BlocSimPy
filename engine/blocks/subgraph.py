@@ -10,11 +10,13 @@ class SubGraph(BlockModel):
         "description": "Container block with custom interface/variables",
         "parameters": "BlockName + Custom Variables",
         "formula": "Executes internal diagram with variable substitution ($VarName)",
-        "usage": "Double-click to enter. Ctrl+Double-click to edit variables. Use $VarName in internal blocks."
+        "usage": "Double-click to enter. Ctrl+Double-click to edit variables. Use $VarName in internal blocks.",
+        "category": "Structure"
     }
     
     def __init__(self):
         super().__init__("SubGraph")
+        self.is_container = True
         
         # Use separate attributes to match scene_manager expectations
         self.internal_blocks_data = []

@@ -6,8 +6,9 @@ class Integrator(BlockModel):
     BLOCK_INFO = {
         "description": "Integrates input signal over time (Euler method)",
         "parameters": "Initial Condition",
-        "formula": "Output(t) = IC + ∫Input(τ)dτ",
-        "usage": "Accumulate values, model dynamic systems, or implement controllers"
+        "formula": "Standard recursive integration",
+        "usage": "Dynamic systems, state estimation",
+        "category": "Signal"
     }
     
     def __init__(self):

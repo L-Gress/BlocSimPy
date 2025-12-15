@@ -6,8 +6,9 @@ class Gain(BlockModel):
     BLOCK_INFO = {
         "description": "Multiplies input signal by a constant gain factor",
         "parameters": "Gain (multiplication factor)",
-        "formula": "Output = Input × Gain",
-        "usage": "Scale signals, adjust amplitude, or implement simple controllers"
+        "formula": "out = Gain * in",
+        "usage": "Scaling signals",
+        "category": "Math"
     }
     
     def __init__(self):

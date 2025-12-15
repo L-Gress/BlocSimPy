@@ -17,7 +17,8 @@ class PID(BlockModel):
         "description": "Proportional-Integral-Derivative controller for feedback control",
         "parameters": "Kp (proportional), Ki (integral), Kd (derivative)",
         "formula": "Output = Kp×e + Ki×∫e + Kd×(de/dt)",
-        "usage": "Control systems to track setpoints and reject disturbances"
+        "usage": "Control systems to track setpoints and reject disturbances",
+        "category": "Signal"
     }
     
     def __init__(self):
