@@ -150,9 +150,8 @@ class ToolbarManager:
 
     def deploy_simulation(self):
         """Deploy the current graph to the Realtime Server."""
-        # 1. Check if we are inside a subsystem
-        if not self.main_window.scene_manager.subsystem_stack:
-            QMessageBox.warning(self.main_window, "Deploy Error", "You must be inside a SubGraph (Subsystem) to deploy.")
+        # 1. Check blocks exist
+        if not self.main_window.scene_manager.blocks_ui:
             return
 
         # 2. Check for InputPorts (Must be absent)
@@ -170,39 +169,70 @@ class ToolbarManager:
                 "The deployed graph must be self-contained or use Audio Inputs."
             )
             return
-
-        # 3. Check blocks exist
-        if not self.main_window.scene_manager.blocks_ui:
-            return
-
-        # 4. Open Deploy Dialog
-        dialog = DeployDialog(self.main_window)
-        if dialog.exec():
-            settings = dialog.get_settings()
             
-            # Serialize
-            graph_data = GraphSerializer.serialize_graph(self.main_window.scene_manager.blocks_ui)
-            
-            payload = {
-                "graph": graph_data,
-                "config": settings
-            }
-            
-            # Send to Server
-            try:
-                url = settings["url"] + "/deploy"
-                data = json.dumps(payload).encode('utf-8')
-                req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+        # 3. Determine Configuration from Context
+        # Default settings
+        settings = {
+            "execution_mode": "Auto Detect", 
+            "sample_rate": 44100,
+            "buffer_size": 1024
+        }
+        
+        # Override if inside a SubGraph
+        if self.main_window.scene_manager.subsystem_stack:
+            context = self.main_window.scene_manager.subsystem_stack[-1]
+            container = context.get("subsystem_model")
+            if container:
+                # Map Subgraph params to Server config
+                mode = container.params.get("Execution Mode", "Standard")
+                settings["execution_mode"] = mode
                 
-                api_key = settings.get("api_key")
-                if api_key:
-                    req.add_header('X-API-Key', api_key)
+                try:
+                    rate = float(container.params.get("Sample Rate", 44100.0))
+                    settings["sample_rate"] = rate
+                except:
+                    pass
+        
+        # 4. Serialize Graph
+        graph_data = GraphSerializer.serialize_graph(self.main_window.scene_manager.blocks_ui)
+        
+        payload = {
+            "graph": graph_data,
+            "config": settings
+        }
+        
+        default_url = "http://localhost:8080"
+        
+        # Deploy Helper
+        def try_deploy(url, key=None):
+            req_url = url + "/deploy"
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(req_url, data=data, headers={'Content-Type': 'application/json'})
+            if key: req.add_header('X-API-Key', key)
+            with urllib.request.urlopen(req) as f:
+                return f.read().decode('utf-8')
 
-                with urllib.request.urlopen(req) as f:
-                    resp = f.read().decode('utf-8')
+        # 5. Attempt Quick Deploy (Localhost)
+        failed_quick = False
+        try:
+            resp = try_deploy(default_url)
+            QMessageBox.information(self.main_window, "Deploy Success", f"Server responded: {resp}")
+        except:
+            failed_quick = True
+            
+        # 6. Fallback to Dialog if quick deploy failed or user wants to change server
+        if failed_quick:
+            # We don't ask to configure params anymore, just server details
+            dialog = DeployDialog(self.main_window, default_url=default_url)
+            if dialog.exec():
+                conn_settings = dialog.get_settings()
+                # conn_settings only has 'url' and 'api_key' now
+                
+                try:
+                    resp = try_deploy(conn_settings["url"], conn_settings.get("api_key"))
                     QMessageBox.information(self.main_window, "Deploy Success", f"Server responded: {resp}")
-            except Exception as e:
-                QMessageBox.critical(self.main_window, "Deploy Failed", f"Could not connect to server:\n{str(e)}")
+                except Exception as e2:
+                    QMessageBox.critical(self.main_window, "Deploy Failed", str(e2))
 
     def show_deployment_manager(self):
         """Show the deployment manager dialog."""

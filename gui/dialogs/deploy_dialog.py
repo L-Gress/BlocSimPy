@@ -22,28 +22,6 @@ class DeployDialog(QDialog):
         self.api_key_edit.setEchoMode(QLineEdit.Password)
         form_layout.addRow("API Key:", self.api_key_edit)
         
-        # Execution Mode
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Auto Detect", "Audio Driven", "Timer Driven"])
-        self.mode_combo.currentTextChanged.connect(self._update_fields)
-        form_layout.addRow("Execution Mode:", self.mode_combo)
-        
-        # Settings Stack (Simplified as shared fields for now)
-        # We'll share fields but change labels/visibility logic if needed contextually
-        # For now, let's keep it simple: Rate/Step Size and Block/Buffer Size
-        
-        self.rate_label = QLabel("Sample Rate (Hz):")
-        self.rate_spin = QSpinBox()
-        self.rate_spin.setRange(1, 100000)
-        self.rate_spin.setValue(44100)
-        form_layout.addRow(self.rate_label, self.rate_spin)
-        
-        self.size_label = QLabel("Buffer Size (samples):")
-        self.size_spin = QSpinBox()
-        self.size_spin.setRange(1, 8192)
-        self.size_spin.setValue(1024)
-        form_layout.addRow(self.size_label, self.size_spin)
-        
         layout.addLayout(form_layout)
         
         layout.addWidget(QLabel("<i>ensure server is running</i>"))
@@ -53,24 +31,8 @@ class DeployDialog(QDialog):
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
         
-        self._update_fields(self.mode_combo.currentText())
-
-    def _update_fields(self, mode):
-        if mode == "Timer Driven":
-            self.rate_label.setText("Frequency (Hz):")
-            self.size_label.setText("Steps per Batch:")
-            if self.rate_spin.value() == 44100: self.rate_spin.setValue(100) # Default to 100Hz for control
-            if self.size_spin.value() == 1024: self.size_spin.setValue(1)
-        else:
-            self.rate_label.setText("Sample Rate (Hz):")
-            self.size_label.setText("Buffer Size:")
-            if self.rate_spin.value() == 100: self.rate_spin.setValue(44100)
-        
     def get_settings(self):
         return {
             "url": self.url_edit.text(),
-            "api_key": self.api_key_edit.text(),
-            "execution_mode": self.mode_combo.currentText(),
-            "sample_rate": self.rate_spin.value(),
-            "buffer_size": self.size_spin.value()
+            "api_key": self.api_key_edit.text()
         }

@@ -44,15 +44,15 @@ class DeploymentManagerDialog(QDialog):
         
         btn_start = QPushButton("▶ Start")
         btn_start.setStyleSheet("color: green;")
-        btn_start.clicked.connect(lambda: self.control_action("start"))
+        btn_start.clicked.connect(lambda checked=False: self.control_action("start"))
         
         btn_stop = QPushButton("⏹ Stop")
         btn_stop.setStyleSheet("color: orange;")
-        btn_stop.clicked.connect(lambda: self.control_action("stop"))
+        btn_stop.clicked.connect(lambda checked=False: self.control_action("stop"))
         
         btn_delete = QPushButton("❌ Delete")
         btn_delete.setStyleSheet("color: red;")
-        btn_delete.clicked.connect(lambda: self.control_action("delete"))
+        btn_delete.clicked.connect(lambda checked=False: self.control_action("delete"))
         
         btn_close = QPushButton("Close")
         btn_close.clicked.connect(self.accept)
@@ -60,6 +60,11 @@ class DeploymentManagerDialog(QDialog):
         btn_layout.addWidget(btn_start)
         btn_layout.addWidget(btn_stop)
         btn_layout.addWidget(btn_delete)
+        
+        btn_deploy_json = QPushButton("📂 Deploy JSON")
+        btn_deploy_json.clicked.connect(self.deploy_from_file)
+        btn_layout.addWidget(btn_deploy_json)
+
         btn_layout.addStretch()
         btn_layout.addWidget(btn_close)
         
@@ -67,6 +72,34 @@ class DeploymentManagerDialog(QDialog):
         
         # Initial Load
         self.refresh_list()
+
+    def deploy_from_file(self):
+        from PySide6.QtWidgets import QFileDialog
+        
+        filename, _ = QFileDialog.getOpenFileName(self, "Open Deployment JSON", "", "JSON Files (*.json)")
+        if not filename:
+            return
+            
+        try:
+            with open(filename, 'r') as f:
+                data = json.load(f)
+                
+            # Send to server
+            url = self.server_url + "/deploy"
+            payload = json.dumps(data).encode('utf-8')
+            
+            req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+            key = self.api_key_edit.text()
+            if key: req.add_header('X-API-Key', key)
+            
+            with urllib.request.urlopen(req) as f:
+                resp = json.loads(f.read().decode('utf-8'))
+                
+            QMessageBox.information(self, "Success", f"Deployed successfully: {resp.get('id')}")
+            self.refresh_list()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Deployment Failed", str(e))
         
     def refresh_list(self):
         """Fetch deployments from server."""
@@ -114,8 +147,8 @@ class DeploymentManagerDialog(QDialog):
             key = self.api_key_edit.text()
             if key: req.add_header('X-API-Key', key)
             with urllib.request.urlopen(req) as f:
-                # resp = json.loads(f.read().decode('utf-8'))
-                pass
+                # Read response to ensure completion
+                _ = f.read()
                 
             self.refresh_list()
             
