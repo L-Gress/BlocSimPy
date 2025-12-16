@@ -193,6 +193,11 @@ class ToolbarManager:
                 url = settings["url"] + "/deploy"
                 data = json.dumps(payload).encode('utf-8')
                 req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+                
+                api_key = settings.get("api_key")
+                if api_key:
+                    req.add_header('X-API-Key', api_key)
+
                 with urllib.request.urlopen(req) as f:
                     resp = f.read().decode('utf-8')
                     QMessageBox.information(self.main_window, "Deploy Success", f"Server responded: {resp}")

@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, 
-                               QTableWidgetItem, QPushButton, QHeaderView, QMessageBox, QLabel)
+                               QTableWidgetItem, QPushButton, QHeaderView, QMessageBox, QLabel, QLineEdit)
 import urllib.request
 import json
 from .deploy_dialog import DeployDialog
@@ -18,6 +18,13 @@ class DeploymentManagerDialog(QDialog):
         # Header
         header_layout = QHBoxLayout()
         header_layout.addWidget(QLabel(f"Server: {server_url}"))
+        
+        self.api_key_edit = QLineEdit()
+        self.api_key_edit.setPlaceholderText("API Key")
+        self.api_key_edit.setEchoMode(QLineEdit.Password)
+        self.api_key_edit.setFixedWidth(150)
+        header_layout.addWidget(self.api_key_edit)
+        
         btn_refresh = QPushButton("🔄 Refresh")
         btn_refresh.clicked.connect(self.refresh_list)
         header_layout.addWidget(btn_refresh)
@@ -66,7 +73,11 @@ class DeploymentManagerDialog(QDialog):
         self.table.setRowCount(0)
         try:
             url = self.server_url + "/deployments"
-            with urllib.request.urlopen(url) as f:
+            req = urllib.request.Request(url)
+            key = self.api_key_edit.text()
+            if key: req.add_header('X-API-Key', key)
+            
+            with urllib.request.urlopen(req) as f:
                 data = json.loads(f.read().decode('utf-8'))
                 
             for dep in data:
@@ -100,6 +111,8 @@ class DeploymentManagerDialog(QDialog):
             data = json.dumps(payload).encode('utf-8')
             
             req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+            key = self.api_key_edit.text()
+            if key: req.add_header('X-API-Key', key)
             with urllib.request.urlopen(req) as f:
                 # resp = json.loads(f.read().decode('utf-8'))
                 pass

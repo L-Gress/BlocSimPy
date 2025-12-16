@@ -1,14 +1,13 @@
 from ..models import BlockModel
 import numpy as np
 
-
 class SineWave(BlockModel):
     """Generates a sinusoidal waveform signal."""
     
     BLOCK_INFO = {
         "description": "Generates a sinusoidal waveform signal",
-        "parameters": "Amplitude, Frequency (Hz), Phase (rad)",
-        "formula": "Output = Amplitude × sin(2π × Frequency × t + Phase)",
+        "parameters": "Amplitude, Frequency (Hz), Phase (rad), Use External Time",
+        "formula": "Output = Amplitude * sin(2*pi * Frequency * t + Phase)",
         "usage": "Use for testing systems with periodic inputs or generating oscillating signals"
     }
     
@@ -17,25 +16,68 @@ class SineWave(BlockModel):
         self.add_output("out")
         self.add_param("Amplitude", 1.0)
         self.add_param("Frequency", 1.0)
+        self.add_param("Phase", 0.0)
+        self.add_param("Use External Time", "False") # "True" or "False"
+        
+        # Initialize structure
+        self.update_io()
+
+    def update_io(self):
+        use_ext = self.params.get("Use External Time", "False") == "True"
+        changed = False
+        if use_ext:
+            if "time" not in self.inputs:
+                self.add_input("time")
+                changed = True
+        else:
+            if "time" in self.inputs:
+                del self.inputs["time"]
+                changed = True
+        
+        if changed:
+            self.needs_port_refresh = True
 
     def compute(self, t, dt):
-        amp = float(self.params["Amplitude"])
-        freq = float(self.params["Frequency"])
-        self.outputs["out"].value = amp * np.sin(2 * np.pi * freq * t)
+        amp = float(self.params.get("Amplitude", 1.0))
+        freq = float(self.params.get("Frequency", 1.0))
+        phase = float(self.params.get("Phase", 0.0))
+        
+        # Determine time source
+        time_val = t
+        if self.params.get("Use External Time", "False") == "True" and "time" in self.inputs:
+            time_val = self.inputs["time"].value
+
+        self.outputs["out"].value = amp * np.sin(2 * np.pi * freq * time_val + phase)
+
+    # Hooks to ensure structure is correct after loading
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.update_io()
 
     def get_editor_dialog(self, parent=None):
-        """Return generic parameter editor dialog."""
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox
+        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QCheckBox, QDialogButtonBox
 
         dialog = QDialog(parent)
         dialog.setWindowTitle(f"Edit {self.name}")
         layout = QFormLayout(dialog)
-        widgets = {}
+        
+        # Amplitude
+        le_amp = QLineEdit(str(self.params.get("Amplitude", 1.0)))
+        layout.addRow("Amplitude:", le_amp)
 
-        for key, val in self.params.items():
-            le = QLineEdit(str(val))
-            layout.addRow(key, le)
-            widgets[key] = le
+        # Frequency
+        le_freq = QLineEdit(str(self.params.get("Frequency", 1.0)))
+        layout.addRow("Frequency (Hz):", le_freq)
+
+        # Phase
+        le_phase = QLineEdit(str(self.params.get("Phase", 0.0)))
+        layout.addRow("Phase (rad):", le_phase)
+
+        # External Time
+        cb_ext_time = QCheckBox()
+        is_checked = self.params.get("Use External Time", "False") == "True"
+        cb_ext_time.setChecked(is_checked)
+        layout.addRow("Use External Time:", cb_ext_time)
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(dialog.accept)
@@ -45,16 +87,24 @@ class SineWave(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            for key, le in widgets.items():
-                old_val = self.params[key]
-                new_str = le.text()
-                try:
-                    if isinstance(old_val, float) or isinstance(old_val, int):
-                        self.params[key] = float(new_str)
-                    else:
-                        self.params[key] = new_str
-                except:
-                    self.params[key] = new_str
+            try:
+                self.params["Amplitude"] = float(le_amp.text())
+            except ValueError:
+                pass # Keep old or ignore
+            
+            try:
+                self.params["Frequency"] = float(le_freq.text())
+            except ValueError:
+                pass
+                
+            try:
+                self.params["Phase"] = float(le_phase.text())
+            except ValueError:
+                pass
+
+            self.params["Use External Time"] = "True" if cb_ext_time.isChecked() else "False"
+            
+            self.update_io()
             original_accept()
 
         dialog.accept = accept_with_save

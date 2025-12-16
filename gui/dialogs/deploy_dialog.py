@@ -17,6 +17,11 @@ class DeployDialog(QDialog):
         self.url_edit = QLineEdit(default_url)
         form_layout.addRow("Server URL:", self.url_edit)
         
+        self.api_key_edit = QLineEdit()
+        self.api_key_edit.setPlaceholderText("Optional (if server secured)")
+        self.api_key_edit.setEchoMode(QLineEdit.Password)
+        form_layout.addRow("API Key:", self.api_key_edit)
+        
         # Execution Mode
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Auto Detect", "Audio Driven", "Timer Driven"])
@@ -64,6 +69,7 @@ class DeployDialog(QDialog):
     def get_settings(self):
         return {
             "url": self.url_edit.text(),
+            "api_key": self.api_key_edit.text(),
             "execution_mode": self.mode_combo.currentText(),
             "sample_rate": self.rate_spin.value(),
             "buffer_size": self.size_spin.value()

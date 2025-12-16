@@ -10,6 +10,7 @@ from .pid import PID
 from .clock import Clock
 from .if_else import IfElse
 from .logical_operator import LogicalOperator
+from .relational_operator import RelationalOperator
 from .product import Product
 from .divide import Divide
 from .input_port import InputPort
@@ -21,6 +22,8 @@ from .delay import Delay
 from .abs import Abs
 from .max import Max
 from .min import Min
+from .rest_input import RestInput
+from .rest_output import RestOutput
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -36,6 +39,7 @@ BLOCK_REGISTRY = {
     "Product": Product,
     "Divide": Divide,
     "LogicalOperator": LogicalOperator,
+    "RelationalOperator": RelationalOperator,
     "IfElse": IfElse,
     "SubGraph": SubGraph,
     "InputPort": InputPort,
@@ -46,4 +50,6 @@ BLOCK_REGISTRY = {
     "Abs": Abs,
     "Max": Max,
     "Min": Min,
+    "RestInput": RestInput,
+    "RestOutput": RestOutput,
 }
