@@ -5,6 +5,7 @@ import json
 from engine.serialization import GraphSerializer
 from engine.blocks import BLOCK_REGISTRY
 from ..items import UIBlock, UIConnection
+from .undo_manager import UndoManager
 
 
 class SceneManager:
@@ -15,12 +16,19 @@ class SceneManager:
         self.blocks_ui = [] 
         self.current_file_path = None
         
+        self.undo_manager = UndoManager(self)
+        self.take_snapshot() # Initial empty state snapshot
+        
         # Clipboard
         self.clipboard_data = None
         
         # Subsystem navigation
         self.subsystem_stack = []
         self.breadcrumb_label = None
+        
+    def take_snapshot(self):
+        """Helper to take a snapshot for undo/redo."""
+        self.undo_manager.take_snapshot()
         
     def add_block_to_scene(self, list_item):
         """Add a block from the library to the scene (ListWidget version)."""
@@ -34,6 +42,7 @@ class SceneManager:
             ui_block.setPos(100, 100)
             self.main_window.scene.addItem(ui_block)
             self.blocks_ui.append(ui_block)
+            self.take_snapshot()
     
     def save_selected_subgraph_to_library(self):
         """
@@ -199,6 +208,7 @@ class SceneManager:
                     data = json.load(f)
                 self._load_scene_data(data)
                 self.current_file_path = file_path
+                self.take_snapshot()
                 QMessageBox.information(self.main_window, "Success", f"Loaded from {file_path}")
             except Exception as e:
                 QMessageBox.critical(self.main_window, "Error", f"Failed to load: {str(e)}")
@@ -490,6 +500,8 @@ class SceneManager:
                     to_port_ui.model.connected_port = from_port_ui.model
                     
                     conn.setSelected(True)
+        
+        self.take_snapshot()
 
     def _update_breadcrumb(self):
         """Update breadcrumb navigation label."""

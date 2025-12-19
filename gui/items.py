@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsPathItem
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsPathItem, QDialog
 from PySide6.QtCore import Qt, QPointF, QRectF, QLineF
 from PySide6.QtGui import QPen, QBrush, QPainterPath, QColor, QPainter, QPainterPathStroker
 
@@ -405,7 +405,14 @@ class UIBlock(QGraphicsItem):
         if hasattr(self.model, 'get_editor_dialog'):
             editor = self.model.get_editor_dialog(None)
             if editor:
-                editor.exec()
+                if editor.exec() == QDialog.Accepted:
+                    scene = self.scene()
+                    if scene:
+                        views = scene.views()
+                        if views:
+                            main_window = views[0].parent()
+                            if hasattr(main_window, 'scene_manager'):
+                                main_window.scene_manager.take_snapshot()
         super().mouseDoubleClickEvent(event)
 
     def refresh_ports(self):
