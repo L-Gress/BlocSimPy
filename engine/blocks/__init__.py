@@ -26,6 +26,8 @@ from .rest_input import RestInput
 from .rest_output import RestOutput
 from .modulo import Modulo
 from .audio_record import AudioRecord
+from .audio_read import AudioRead
+
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -56,4 +58,5 @@ BLOCK_REGISTRY = {
     "Min": Min,
     "RestInput": RestInput,
     "RestOutput": RestOutput,
+    "AudioRead": AudioRead,
 }

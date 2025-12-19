@@ -238,17 +238,41 @@ class UIPort(QGraphicsItem):
         super().__init__(parent)
         self.model = port_model
         self.is_input = is_input
-        self.rect = QRectF(0, 0, 10, 10)
+        self.size = 14
+        self.rect = QRectF(0, 0, self.size, self.size)
         self.setAcceptHoverEvents(True)
         self.connections = []
+        self._hovered = False
 
     def boundingRect(self):
         return self.rect
 
     def paint(self, painter, option, widget):
-        painter.setBrush(QBrush(QColor("orange") if self.is_input else QColor("green")))
-        painter.setPen(Qt.NoPen)
+        color = QColor("orange") if self.is_input else QColor("green")
+        if self._hovered:
+            color = color.lighter(130)
+            
+        painter.setBrush(QBrush(color))
+        painter.setPen(QPen(color.darker(150), 1) if self._hovered else Qt.NoPen)
         painter.drawEllipse(self.rect)
+        
+        if self._hovered:
+            # Subtle glow
+            glow = QColor(color)
+            glow.setAlpha(50)
+            painter.setBrush(QBrush(glow))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(self.rect.adjusted(-2, -2, 2, 2))
+
+    def hoverEnterEvent(self, event):
+        self._hovered = True
+        self.update()
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self._hovered = False
+        self.update()
+        super().hoverLeaveEvent(event)
 
 
 class UIBlock(QGraphicsItem):
@@ -269,9 +293,9 @@ class UIBlock(QGraphicsItem):
         num_inputs = len(self.model.inputs)
         num_outputs = len(self.model.outputs)
         
-        # Formula: Top margin (20) + (20 * count) + Bottom margin (approx 20)
-        req_height_in = 20 + (num_inputs * 20)
-        req_height_out = 20 + (num_outputs * 20)
+        # Formula: Top margin (20) + (25 * count) + Bottom margin
+        req_height_in = 20 + (num_inputs * 25)
+        req_height_out = 20 + (num_outputs * 25)
         
         # The block height is the Max of inputs, outputs, or the default 60
         self.height = max(60, req_height_in, req_height_out)
@@ -280,17 +304,17 @@ class UIBlock(QGraphicsItem):
         y_offset = 20
         for name in self.model.inputs:
             p = UIPort(self, self.model.inputs[name], True)
-            p.setPos(-5, y_offset) 
+            p.setPos(-7, y_offset) 
             self.ports_ui[name] = p
-            y_offset += 20
+            y_offset += 25  # Increased spacing for larger ports
 
         # 3. Place Outputs (Right Side)
         y_offset = 20
         for name in self.model.outputs:
             p = UIPort(self, self.model.outputs[name], False)
-            p.setPos(self.width - 5, y_offset)
+            p.setPos(self.width - 7, y_offset)
             self.ports_ui[name] = p
-            y_offset += 20
+            y_offset += 25  # Increased spacing for larger ports
 
     def boundingRect(self):
         # We make the bounding rect larger than the block to include the text labels.
@@ -324,8 +348,9 @@ class UIBlock(QGraphicsItem):
             painter.save()
             
             # Visual center of port
-            px = port.pos().x() + 5
-            py = port.pos().y() + 5
+            center = port.boundingRect().center()
+            px = port.pos().x() + center.x()
+            py = port.pos().y() + center.y()
             
             painter.translate(px, py)
             painter.rotate(-self.rotation())
