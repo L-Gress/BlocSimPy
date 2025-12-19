@@ -67,7 +67,7 @@ class AudioDeviceDialog(QDialog):
                 self.btn_test.setText("Recording...")
                 QApplication.processEvents()
                 # Record 1s
-                rec = sd.rec(int(fs), samplerate=fs, channels=1, device=dev, blocking=True)
+                rec = sd.rec(int(fs), samplerate=fs, channels=1, device=dev, blocking=True, latency='low')
                 amp = np.max(np.abs(rec))
                 QMessageBox.information(self, "Result", f"Max Amplitude: {amp:.4f}\n(If 0.0, check OS permissions)")
             else:
@@ -75,7 +75,7 @@ class AudioDeviceDialog(QDialog):
                 QApplication.processEvents()
                 t = np.linspace(0, 1, fs, False)
                 # Play 1s sine
-                sd.play(0.5 * np.sin(2*np.pi*440*t), fs, device=dev, blocking=True)
+                sd.play(0.5 * np.sin(2*np.pi*440*t), fs, device=dev, blocking=True, latency='low')
             self.btn_test.setText(f"Test {self.mode.capitalize()}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

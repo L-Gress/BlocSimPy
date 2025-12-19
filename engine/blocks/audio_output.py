@@ -83,7 +83,7 @@ class AudioDeviceDialog(QDialog):
             self.btn_test.setText("Playing...")
             QApplication.processEvents()
             
-            sd.play(audio, fs, device=device_idx, blocking=True)
+            sd.play(audio, fs, device=device_idx, blocking=True, latency='low')
             
             self.btn_test.setText("Test Output")
             self.btn_test.setEnabled(True)

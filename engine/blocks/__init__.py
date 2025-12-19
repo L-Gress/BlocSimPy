@@ -24,6 +24,8 @@ from .max import Max
 from .min import Min
 from .rest_input import RestInput
 from .rest_output import RestOutput
+from .modulo import Modulo
+from .audio_record import AudioRecord
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -38,6 +40,8 @@ BLOCK_REGISTRY = {
     "Sum": Sum,
     "Product": Product,
     "Divide": Divide,
+    "Modulo": Modulo,
+    "AudioRecord": AudioRecord,
     "LogicalOperator": LogicalOperator,
     "RelationalOperator": RelationalOperator,
     "IfElse": IfElse,

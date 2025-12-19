@@ -11,7 +11,8 @@ class LogicalOperator(BlockModel):
         "description": "Performs logical operations on input signals",
         "parameters": "Operator (AND, OR, NOT, XOR, NAND, NOR)",
         "formula": "Outputs 1.0 or 0.0 based on logical operation",
-        "usage": "Combine boolean conditions"
+        "usage": "Combine boolean conditions",
+        "category": "Logic"
     }
     
     def __init__(self):

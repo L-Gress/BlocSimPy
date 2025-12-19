@@ -10,7 +10,8 @@ class Divide(BlockModel):
         "description": "Divides first input by second input",
         "parameters": "None (takes 2 inputs)",
         "formula": "Output = num / den",
-        "usage": "Normalize signals, calculate ratios, or implement inverse operations"
+        "usage": "Normalize signals, calculate ratios, or implement inverse operations",
+        "category": "Math"
     }
     
     def __init__(self):

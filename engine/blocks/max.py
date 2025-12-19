@@ -10,7 +10,8 @@ class Max(BlockModel):
         "description": "Outputs the larger value of the two input signals",
         "parameters": "None (takes 2 inputs)",
         "formula": "Output = max(in1, in2)",
-        "usage": "Signal limiting, logic comparison, or ceiling functions"
+        "usage": "Signal limiting, logic comparison, or ceiling functions",
+        "category": "Math"
     }
     
     def __init__(self):

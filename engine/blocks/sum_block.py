@@ -5,9 +5,9 @@ class Sum(BlockModel):
     """Sum block - adds or subtracts signals."""
     
     BLOCK_INFO = {
-        "description": "Adds or subtracts multiple input signals",
-        "parameters": "Signs (comma-separated +/- for each input)",
-        "formula": "Output = ±Input1 ± Input2 ± ...",
+        "description": "Adds or subtracts two input signals",
+        "parameters": "None (takes 2 inputs)",
+        "formula": "Output = in1 + in2",
         "usage": "Combine signals, implement feedback loops, or calculate errors",
         "category": "Math"
     }

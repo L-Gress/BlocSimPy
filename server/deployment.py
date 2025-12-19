@@ -64,7 +64,8 @@ def deploy_graph_internal(data, dep_id=None, initial_status="Running"):
         
         processor = AudioProcessor(blocks, sample_rate)
         stream = sd.Stream(channels=2, samplerate=sample_rate, blocksize=buffer_size,
-                            callback=processor.callback, device=(in_device, out_device))
+                            callback=processor.callback, device=(in_device, out_device),
+                            latency='low')
         
         dep_info = {
             "type": "audio",

@@ -116,7 +116,8 @@ class LookupTable(BlockModel):
         "description": "Maps input values to output using linear interpolation",
         "parameters": "Table data (X-Y pairs), supports CSV import",
         "formula": "Output = interp(Input, X_data, Y_data)",
-        "usage": "Implement nonlinear functions, calibration curves, or empirical data"
+        "usage": "Implement nonlinear functions, calibration curves, or empirical data",
+        "category": "Math"
     }
     
     def __init__(self):

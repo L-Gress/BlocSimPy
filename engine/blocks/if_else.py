@@ -17,7 +17,8 @@ class IfElse(BlockModel):
         "description": "Conditional output based on comparison operator",
         "parameters": "Operator (>, <, >=, <=, ==, !=)",
         "formula": "Output = (cond >= threshold) ? true : false",
-        "usage": "Implement conditional logic, saturation, or switching behavior"
+        "usage": "Implement conditional logic, saturation, or switching behavior",
+        "category": "Logic"
     }
     
     def __init__(self):

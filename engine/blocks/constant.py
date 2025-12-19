@@ -7,7 +7,8 @@ class Constant(BlockModel):
         "description": "Outputs a constant value throughout simulation",
         "parameters": "Value (constant number)",
         "formula": "Output = Value",
-        "usage": "Provide setpoints, parameters, or fixed inputs to systems"
+        "usage": "Provide setpoints, parameters, or fixed inputs to systems",
+        "category": "Sources"
     }
     
     def __init__(self):

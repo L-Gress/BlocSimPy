@@ -2,8 +2,11 @@ from ..models import BlockModel
 
 class RestInput(BlockModel):
     BLOCK_INFO = {
-        "category": "IO",
-        "doc": "Receives a value from the REST API."
+        "description": "Receives a value from the REST API for real-time control",
+        "parameters": "Endpoint ID, Initial Value, Data Type",
+        "formula": "Output = API_Value",
+        "usage": "Use to control simulations from external dashboards or applications.",
+        "category": "IO"
     }
 
     def __init__(self):

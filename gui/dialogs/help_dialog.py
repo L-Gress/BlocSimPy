@@ -93,35 +93,62 @@ class HelpDialog(QDialog):
         self._update_reference(search_text.lower())
     
     def _update_reference(self, search_text):
-        """Update the reference text with filtered blocks."""
+        """Update the reference text with filtered blocks, grouped by category."""
         html_content = "<html><body style='font-family: Arial, sans-serif;'>"
         
-        # Sort blocks alphabetically
-        sorted_blocks = sorted(self.block_descriptions.items())
-        
-        matched_count = 0
-        for block_name, info in sorted_blocks:
+        # 1. Organize blocks by category
+        categories = {}
+        for block_name, info in self.block_descriptions.items():
+            cat = info.get('category', 'General')
+            
+            description = info.get('description', info.get('doc', 'Generic block'))
+            params = info.get('parameters', 'N/A')
+            formula = info.get('formula', 'N/A')
+            usage = info.get('usage', 'N/A')
+            
             # Filter based on search
             if search_text:
-                searchable = f"{block_name} {info['description']} {info['usage']}".lower()
+                searchable = f"{block_name} {description} {usage} {cat}".lower()
                 if search_text not in searchable:
                     continue
             
-            matched_count += 1
+            if cat not in categories:
+                categories[cat] = []
             
-            # Format each block entry
-            html_content += f"""
-            <div style='margin-bottom: 20px; padding: 10px; background-color: #f5f5f5; border-left: 4px solid #2E86AB;'>
-                <h3 style='margin: 0 0 8px 0; color: #2E86AB;'>🔷 {block_name}</h3>
-                <p style='margin: 5px 0;'><b>Description:</b> {info['description']}</p>
-                <p style='margin: 5px 0;'><b>Parameters:</b> {info['parameters']}</p>
-                <p style='margin: 5px 0;'><b>Formula:</b> <code style='background-color: #e0e0e0; padding: 2px 6px; border-radius: 3px;'>{info['formula']}</code></p>
-                <p style='margin: 5px 0;'><b>Usage:</b> <i>{info['usage']}</i></p>
-            </div>
-            """
+            categories[cat].append({
+                'name': block_name,
+                'description': description,
+                'parameters': params,
+                'formula': formula,
+                'usage': usage
+            })
+            
+        # 2. Sort categories alphabetically
+        sorted_category_names = sorted(categories.keys())
         
-        if matched_count == 0:
+        matched_total = 0
+        for cat_name in sorted_category_names:
+            blocks = sorted(categories[cat_name], key=lambda x: x['name'])
+            if not blocks:
+                continue
+                
+            html_content += f"<h2 style='color: #2E86AB; border-bottom: 2px solid #2E86AB; margin-top: 30px;'>📂 {cat_name}</h2>"
+            
+            for block in blocks:
+                matched_total += 1
+                html_content += f"""
+                <div style='margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; border-left: 4px solid #54728c; border-radius: 0 5px 5px 0;'>
+                    <h3 style='margin: 0 0 8px 0; color: #333;'>🔷 {block['name']}</h3>
+                    <p style='margin: 5px 0;'><b>Description:</b> {block['description']}</p>
+                    <p style='margin: 5px 0;'><b>Parameters:</b> {block['parameters']}</p>
+                    <p style='margin: 5px 0;'><b>Formula:</b> <code style='background-color: #e0e0e0; padding: 2px 6px; border-radius: 3px;'>{block['formula']}</code></p>
+                    <p style='margin: 5px 0;'><b>Usage:</b> <i>{block['usage']}</i></p>
+                </div>
+                """
+        
+        if matched_total == 0:
             html_content += "<p style='text-align: center; color: #666; margin-top: 50px;'>❌ No blocks found matching your search.</p>"
         
         html_content += "</body></html>"
         self.reference_text.setHtml(html_content)
+

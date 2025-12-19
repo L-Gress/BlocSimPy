@@ -8,7 +8,8 @@ class SineWave(BlockModel):
         "description": "Generates a sinusoidal waveform signal",
         "parameters": "Amplitude, Frequency (Hz), Phase (rad), Use External Time",
         "formula": "Output = Amplitude * sin(2*pi * Frequency * t + Phase)",
-        "usage": "Use for testing systems with periodic inputs or generating oscillating signals"
+        "usage": "Use for testing systems with periodic inputs or generating oscillating signals",
+        "category": "Sources"
     }
     
     def __init__(self):

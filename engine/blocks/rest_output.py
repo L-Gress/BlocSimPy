@@ -3,8 +3,11 @@ from .rest_input import RestIODialog # Reuse the dialog
 
 class RestOutput(BlockModel):
     BLOCK_INFO = {
-        "category": "IO",
-        "doc": "Exposes a value to the REST API."
+        "description": "Exposes a value to the REST API for external monitoring",
+        "parameters": "Endpoint ID, Data Type",
+        "formula": "API_Value = Input",
+        "usage": "Use to monitor simulation state from external dashboards or applications.",
+        "category": "IO"
     }
 
     def __init__(self):

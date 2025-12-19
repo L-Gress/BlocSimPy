@@ -56,7 +56,8 @@ class Delay(BlockModel):
         "description": "Delays the signal by N steps (z^-n)",
         "parameters": "DelaySteps (int), InitialValue (float)",
         "formula": "y[k] = u[k-n]",
-        "usage": "Use to create echo effects, digital filters, or feedback loops."
+        "usage": "Use to create echo effects, digital filters, or feedback loops.",
+        "category": "Signal"
     }
     
     def __init__(self):

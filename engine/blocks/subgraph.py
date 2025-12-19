@@ -12,7 +12,7 @@ class SubGraph(BlockModel):
     
     BLOCK_INFO = {
         "description": "Container block with custom interface/variables",
-        "parameters": "BlockName, Execution Mode, Sample Rate",
+        "parameters": "BlockName, Execution Mode, Sample Rate, Buffer Size",
         "formula": "Executes internal diagram with variable substitution ($VarName)",
         "usage": "Double-click to enter. Ctrl+Double-click to edit variables. Execution Mode: Standard (Sync), Threaded (Async), Audio (Async Realtime)",
         "category": "Structure"
@@ -40,6 +40,7 @@ class SubGraph(BlockModel):
         self.add_param("BlockName", "MySubGraph")
         self.add_param("Execution Mode", "Standard") # Options: Standard, Threaded, Audio
         self.add_param("Sample Rate", 100.0)         # Only for Threaded/Audio modes
+        self.add_param("Buffer Size", 256)          # Only for Audio mode
         
         self._update_label()
 
@@ -259,7 +260,17 @@ class SubGraph(BlockModel):
             # We need to store the stream to stop it later
             # Ensure rate is int for PortAudio
             int_rate = int(rate)
-            self.stream = sd.Stream(channels=2, callback=self.processor.callback, samplerate=int_rate)
+            buf_size = int(self.params.get("Buffer Size", 256))
+            
+            # Auto-Select WASAPI if possible
+            in_dev = self.processor.get_optimal_audio_device('input')
+            out_dev = self.processor.get_optimal_audio_device('output')
+            devs = (in_dev, out_dev)
+            if in_dev is None and out_dev is None: devs = None
+            
+            self.stream = sd.Stream(channels=2, callback=self.processor.callback, 
+                                    samplerate=int_rate, blocksize=buf_size,
+                                    latency='low', device=devs)
             self.stream.start()
 
         self.running = True
@@ -391,6 +402,23 @@ class SubGraph(BlockModel):
         sr_edit = QLineEdit(str(self.params.get("Sample Rate", 100.0)))
         sr_layout.addWidget(sr_edit)
         form_layout.addLayout(sr_layout)
+
+        # Buffer Size (Only for Audio)
+        bs_widget = QWidget()
+        bs_layout = QHBoxLayout(bs_widget)
+        bs_layout.setContentsMargins(0, 0, 0, 0)
+        bs_layout.addWidget(QLabel("Buffer Size (Samples):"))
+        bs_edit = QLineEdit(str(self.params.get("Buffer Size", 256)))
+        bs_layout.addWidget(bs_edit)
+        form_layout.addWidget(bs_widget)
+        
+        # Visibility Logic
+        def update_visibility(text):
+            is_audio = (text == "Audio")
+            bs_widget.setVisible(is_audio)
+            
+        mode_combo.currentTextChanged.connect(update_visibility)
+        update_visibility(current_mode)
         
         layout.addLayout(form_layout)
         
@@ -411,7 +439,7 @@ class SubGraph(BlockModel):
             table.setItem(row, 1, QTableWidgetItem(str(val)))
             
         # Populate
-        reserved = ["BlockName", "Execution Mode", "Sample Rate"]
+        reserved = ["BlockName", "Execution Mode", "Sample Rate", "Buffer Size"]
         for k, v in self.params.items():
             if k in reserved: continue
             add_row(k, v)
@@ -452,6 +480,16 @@ class SubGraph(BlockModel):
                 new_params["Sample Rate"] = float(sr_edit.text())
             except:
                 new_params["Sample Rate"] = 100.0
+
+            try:
+                # Parse Buffer Size, ensure integer
+                val_bs = int(float(bs_edit.text()))
+                # Enforce power of 2 or reasonable limits if needed? 
+                # For now just positive integer.
+                if val_bs < 1: val_bs = 128
+                new_params["Buffer Size"] = val_bs
+            except:
+                new_params["Buffer Size"] = 1024
             
             for i in range(table.rowCount()):
                 key_item = table.item(i, 0)

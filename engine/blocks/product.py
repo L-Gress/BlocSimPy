@@ -13,7 +13,8 @@ class Product(BlockModel):
         "description": "Multiplies input signals element-wise",
         "parameters": "None (takes 2 inputs)",
         "formula": "Output = in1 × in2",
-        "usage": "Multiply signals, modulate, or implement nonlinear operations"
+        "usage": "Multiply signals, modulate, or implement nonlinear operations",
+        "category": "Math"
     }
     
     def __init__(self):

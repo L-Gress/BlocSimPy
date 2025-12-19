@@ -11,7 +11,8 @@ class RelationalOperator(BlockModel):
         "description": "Performs relational operations on input signals",
         "parameters": "Operator (>, <, >=, <=, ==, !=)",
         "formula": "Outputs 1.0 or 0.0 based on comparison",
-        "usage": "Compare values"
+        "usage": "Compare values",
+        "category": "Logic"
     }
     
     def __init__(self):

@@ -12,7 +12,8 @@ class Abs(BlockModel):
         "description": "Computes the absolute value of the signal",
         "parameters": "None",
         "formula": "Output = |Input|",
-        "usage": "Use for Full-Wave Rectification or magnitude calculation."
+        "usage": "Use for Full-Wave Rectification or magnitude calculation.",
+        "category": "Math"
     }
     
     def __init__(self):

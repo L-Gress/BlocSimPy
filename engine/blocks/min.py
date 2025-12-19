@@ -10,7 +10,8 @@ class Min(BlockModel):
         "description": "Outputs the smaller value of the two input signals",
         "parameters": "None (takes 2 inputs)",
         "formula": "Output = min(in1, in2)",
-        "usage": "Signal clipping, logic comparison, or floor functions"
+        "usage": "Signal clipping, logic comparison, or floor functions",
+        "category": "Math"
     }
     
     def __init__(self):
