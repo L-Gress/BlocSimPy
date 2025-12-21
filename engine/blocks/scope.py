@@ -241,7 +241,7 @@ class Scope(BlockModel):
         # Flag to trigger UI port refresh
         self.needs_port_refresh = False
     
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         """Store data from all input ports at each time step."""
         # Store time (only once per timestep)
         if not self.time_data or self.time_data[-1] != t:

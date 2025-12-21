@@ -25,6 +25,14 @@ class PortModel:
         self._value = val
 
 
+class RuntimeContext:
+    """Provides blocks with access to hardware buffers and external resources."""
+    def __init__(self, indata=None, outdata=None, frame_idx=0):
+        self.indata = indata
+        self.outdata = outdata
+        self.frame_idx = frame_idx
+
+
 class BlockModel:
     """Base class for all simulation blocks."""
     def __init__(self, name: str):
@@ -46,10 +54,10 @@ class BlockModel:
     def add_param(self, name, value):
         self.params[name] = value
 
-    def compute(self, t: float, dt: float):
+    def compute(self, t: float, dt: float, context: Optional[RuntimeContext] = None):
         """Standard update: Read inputs -> Calculate -> Write outputs."""
         pass
 
-    def update_state(self, t: float, dt: float):
+    def update_state(self, t: float, dt: float, context: Optional[RuntimeContext] = None):
         """For stateful blocks (integrators, etc)."""
         pass

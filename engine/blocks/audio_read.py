@@ -82,7 +82,7 @@ class AudioRead(BlockModel):
             print(f"AudioRead Error loading {filename}: {e}")
             self.samples = None
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         if self.samples is None or len(self.samples) == 0:
             self.outputs["out"].value = 0.0
             return

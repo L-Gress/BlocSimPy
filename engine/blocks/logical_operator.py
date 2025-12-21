@@ -31,7 +31,7 @@ class LogicalOperator(BlockModel):
         op = self.params.get("Operator", "AND")
         self.name = op
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # 1. Get Inputs
         # We treat any non-zero value as True, and 0.0 as False.
         # This is standard Python boolean truthiness for floats.

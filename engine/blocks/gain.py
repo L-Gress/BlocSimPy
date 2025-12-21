@@ -17,8 +17,15 @@ class Gain(BlockModel):
         self.add_output("out")
         self.add_param("Gain", 1.0)
         
-        # Initial label update
+        self._cached_gain = 1.0
         self._update_label()
+        self._cache_params()
+
+    def _cache_params(self):
+        try:
+            self._cached_gain = float(self.params.get("Gain", 1.0))
+        except:
+            self._cached_gain = 0.0
 
     def _update_label(self):
         """Format the name based on the current gain value."""
@@ -28,36 +35,27 @@ class Gain(BlockModel):
         except:
             self.name = f"K = {self.params.get('Gain', '?')}"
 
-    def compute(self, t, dt):
-        try:
-            g = float(self.params["Gain"])
-        except:
-            g = 0.0
-        
-        # Check if the label matches the actual parameter during simulation
-        # This is a fallback self-correction
-        expected_name_start = f"K = "
-        if not self.name.startswith(expected_name_start):
-             self._update_label()
-
+    def compute(self, t, dt, context=None):
         u = self.inputs["in"].value if "in" in self.inputs else 0.0
-        self.outputs["out"].value = u * g
+        self.outputs["out"].value = u * self._cached_gain
 
     # --- FIX 1: Catch when the params dictionary is replaced (e.g., JSON load) ---
     def __setattr__(self, name, value):
         # Perform the standard assignment
         super().__setattr__(name, value)
         
-        # If the 'params' dictionary was just overwritten, update the label
+        # If the 'params' dictionary was just overwritten, update the label and cache
         if name == "params" and hasattr(self, "_update_label"):
             self._update_label()
+            self._cache_params()
 
     # --- FIX 2: Catch when the object is loaded via Pickle ---
     def __setstate__(self, state):
         # Restore state
         self.__dict__.update(state)
-        # Update label immediately after load
+        # Update label and cache immediately after load
         self._update_label()
+        self._cache_params()
 
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox

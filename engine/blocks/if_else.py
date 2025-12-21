@@ -48,7 +48,7 @@ class IfElse(BlockModel):
         except:
             self.name = "If / Else"
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # Get Threshold
         try:
             threshold = float(self.params["Threshold"])

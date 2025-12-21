@@ -20,7 +20,7 @@ class Clock(BlockModel):
         # One output named 't' (or 'out')
         self.add_output("out")
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         """
         Called at every simulation step.
         t: current simulation time

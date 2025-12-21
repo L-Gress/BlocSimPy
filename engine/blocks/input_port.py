@@ -24,7 +24,7 @@ class InputPort(BlockModel):
     def _update_label(self):
         self.name = f"In: {self.params.get('PortName', 'In1')}"
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # Value is injected by the SubSystem container before this runs
         pass
 

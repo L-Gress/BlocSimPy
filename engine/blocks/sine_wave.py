@@ -20,7 +20,8 @@ class SineWave(BlockModel):
         self.add_param("Phase", 0.0)
         self.add_param("Use External Time", "False") # "True" or "False"
         
-        # Initialize structure
+        # Initialize caches and structure
+        self._init_caches()
         self.update_io()
 
     def update_io(self):
@@ -38,17 +39,38 @@ class SineWave(BlockModel):
         if changed:
             self.needs_port_refresh = True
 
-    def compute(self, t, dt):
-        amp = float(self.params.get("Amplitude", 1.0))
-        freq = float(self.params.get("Frequency", 1.0))
-        phase = float(self.params.get("Phase", 0.0))
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name == "params" and hasattr(self, "_cached_amp"):
+            self._init_caches()
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.update_io()
+        self._init_caches()
+
+    def _init_caches(self):
+        try:
+            self._cached_amp = float(self.params.get("Amplitude", 1.0))
+            self._cached_freq = float(self.params.get("Frequency", 1.0))
+            self._cached_phase = float(self.params.get("Phase", 0.0))
+        except:
+            self._cached_amp = 1.0
+            self._cached_freq = 1.0
+            self._cached_phase = 0.0
+        self._two_pi = 2.0 * np.pi
+
+    def compute(self, t, dt, context=None):
+        amp = self._cached_amp
+        freq = self._cached_freq
+        phase = self._cached_phase
         
         # Determine time source
         time_val = t
         if self.params.get("Use External Time", "False") == "True" and "time" in self.inputs:
             time_val = self.inputs["time"].value
 
-        self.outputs["out"].value = amp * np.sin(2 * np.pi * freq * time_val + phase)
+        self.outputs["out"].value = amp * np.sin(self._two_pi * freq * time_val + phase)
 
     # Hooks to ensure structure is correct after loading
     def __setstate__(self, state):

@@ -27,7 +27,13 @@ from .rest_output import RestOutput
 from .modulo import Modulo
 from .audio_record import AudioRecord
 from .audio_read import AudioRead
-
+from .saturation import Saturation
+from .ramp import Ramp
+from .switch import Switch
+from .derivative import Derivative
+from .math_func import MathFunction
+from .fft import FFT
+from .ifft import IFFT
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -53,10 +59,17 @@ BLOCK_REGISTRY = {
     "AudioInput": AudioInput,
     "AudioOutput": AudioOutput,
     "Delay": Delay,
-    "Abs": Abs,
+    "Abs": MathFunction, # Alias for backward compatibility or replacement
+    "MathFunction": MathFunction,
     "Max": Max,
     "Min": Min,
     "RestInput": RestInput,
     "RestOutput": RestOutput,
     "AudioRead": AudioRead,
+    "FFT": FFT,
+    "IFFT": IFFT,
+    "Saturation": Saturation,
+    "Ramp": Ramp,
+    "Switch": Switch,
+    "Derivative": Derivative,
 }

@@ -111,9 +111,22 @@ class AudioOutput(BlockModel):
         self.add_input("in")
         self.add_param("Channel", 0)
         self.add_param("Device", "default")
-        
-    def compute(self, t, dt):
-        pass
+        self._cached_channel = 0
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name == "params":
+            try:
+                self._cached_channel = int(float(self.params.get("Channel", 0)))
+            except:
+                self._cached_channel = 0
+
+    def compute(self, t, dt, context=None):
+        if context and context.outdata is not None:
+            ch = self._cached_channel
+            if ch < context.outdata.shape[1]:
+                val = self.inputs["in"].value
+                context.outdata[context.frame_idx, ch] = val
 
     def get_editor_dialog(self, parent=None):
         return AudioDeviceDialog(self.params, mode="output", parent=parent)

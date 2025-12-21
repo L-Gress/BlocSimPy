@@ -50,7 +50,7 @@ class AudioRecord(BlockModel):
             self.is_recording = False
             self.file = None
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         if not self.is_recording or self.file is None:
             return
             

@@ -23,7 +23,7 @@ class Max(BlockModel):
         # Set the display name
         self.name = "Max"
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # Default to 0.0 if not connected
         v1 = self.inputs["in1"].value if "in1" in self.inputs else 0.0
         v2 = self.inputs["in2"].value if "in2" in self.inputs else 0.0

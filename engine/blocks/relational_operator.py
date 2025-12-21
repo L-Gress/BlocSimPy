@@ -32,7 +32,7 @@ class RelationalOperator(BlockModel):
         # Visual improvement: Display as comparison
         self.name = op
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # 1. Get Inputs (default to 0.0)
         val_a = self.inputs["in1"].value if "in1" in self.inputs else 0.0
         val_b = self.inputs["in2"].value if "in2" in self.inputs else 0.0

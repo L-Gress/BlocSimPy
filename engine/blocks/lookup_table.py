@@ -127,7 +127,7 @@ class LookupTable(BlockModel):
         # Store as list of tuples for better flexibility
         self.add_param("Table", [(0.0, 0.0), (1.0, 1.0), (2.0, 4.0), (3.0, 9.0)])
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         try:
             table = self.params["Table"]
             if isinstance(table, str):

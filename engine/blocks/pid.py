@@ -37,7 +37,7 @@ class PID(BlockModel):
         # Previous error for derivative calculation
         self.prev_error = 0.0
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         """Compute the PID output based on the input error."""
         try:
             kp = float(self.params.get("Kp", 1.0))

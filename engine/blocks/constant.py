@@ -16,41 +16,37 @@ class Constant(BlockModel):
         self.add_output("out")
         self.add_param("Value", 1.0)
         
-        # Initial label update
+        self._cached_value = 1.0
         self._update_label()
+        self._cache_params()
+
+    def _cache_params(self):
+        try:
+            self._cached_value = float(self.params.get("Value", 1.0))
+        except:
+            self._cached_value = 0.0
 
     def _update_label(self):
         """Format the name based on the current constant value."""
         try:
             val = self.params.get("Value", 1.0)
-            # Display just the number (e.g. "5.0") or use "C = 5.0" if preferred
             self.name = f"{val}"
         except:
             self.name = f"{self.params.get('Value', '?')}"
 
-    def compute(self, t, dt):
-        try:
-            val = float(self.params["Value"])
-        except:
-            val = 0.0
+    def compute(self, t, dt, context=None):
+        self.outputs["out"].value = self._cached_value
 
-        self.outputs["out"].value = val
-        
-        # Check if the label matches the actual parameter during simulation
-        # (Fallback self-correction like the Gain block)
-        if str(val) != self.name:
-             self._update_label()
-
-    # --- Catch when the params dictionary is replaced (e.g., JSON load) ---
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
         if name == "params" and hasattr(self, "_update_label"):
             self._update_label()
+            self._cache_params()
 
-    # --- Catch when the object is loaded via Pickle ---
     def __setstate__(self, state):
         self.__dict__.update(state)
         self._update_label()
+        self._cache_params()
 
     def get_editor_dialog(self, parent=None):
         """Return generic parameter editor dialog."""

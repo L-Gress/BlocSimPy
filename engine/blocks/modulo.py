@@ -23,7 +23,7 @@ class Modulo(BlockModel):
         # Set the display name
         self.name = "%"
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # Default to 0.0 if not connected
         v_in = self.inputs["in"].value if "in" in self.inputs else 0.0
         v_mod = self.inputs["mod"].value if "mod" in self.inputs else 1.0 # Default mod to 1 to avoid div0 if unconnected

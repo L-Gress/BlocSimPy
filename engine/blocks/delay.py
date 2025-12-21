@@ -69,41 +69,56 @@ class Delay(BlockModel):
         self.add_param("DelaySteps", 1)
         self.add_param("InitialValue", 0.0)
         
-        # State: A queue to hold past values
-        self.buffer = deque()
+        # State: A ring buffer
+        self.buffer = np.zeros(1, dtype=np.float64)
+        self.ptr = 0
+        self._cached_n = 1
+        self._cached_init = 0.0
+        self._cache_params()
+
+    def _cache_params(self):
+        try:
+            old_n = self._cached_n
+            self._cached_n = max(0, int(self.params.get("DelaySteps", 1)))
+            self._cached_init = float(self.params.get("InitialValue", 0.0))
+            
+            # Re-allocate buffer if size changed
+            if self._cached_n != old_n:
+                self.buffer = np.full(self._cached_n + 1, self._cached_init, dtype=np.float64)
+                self.ptr = 0
+        except:
+            pass
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name == "params" and hasattr(self, "_cache_params"):
+            self._cache_params()
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._cache_params()
 
     def reset(self):
         """Resets the internal buffer."""
-        self.buffer.clear()
-        # We don't pre-fill here to save memory; we handle it in compute.
+        self.buffer.fill(self._cached_init)
+        self.ptr = 0
 
-    def compute(self, t, dt):
-        # 1. Parse parameters
-        try:
-            n = int(self.params["DelaySteps"])
-            init_val = float(self.params["InitialValue"])
-        except ValueError:
-            n = 1
-            init_val = 0.0
-
-        # 2. Handle zero delay case (Pass-through)
+    def compute(self, t, dt, context=None):
+        n = self._cached_n
+        
+        # Handle zero delay case (Pass-through)
         if n <= 0:
             self.outputs["out"].value = self.inputs["in"].value
-            self.buffer.clear()
             return
 
-        # 3. Add current input to buffer
-        current_in = self.inputs["in"].value
-        self.buffer.append(current_in)
+        # 1. Output the current value at ptr
+        self.outputs["out"].value = float(self.buffer[self.ptr])
 
-        # 4. Determine output
-        # If we haven't stored enough samples yet, output the Initial Value
-        if len(self.buffer) > n:
-            # Pop the oldest value (FIFO)
-            self.outputs["out"].value = self.buffer.popleft()
-        else:
-            # Buffer filling up phase
-            self.outputs["out"].value = init_val
+        # 2. Store new input at ptr
+        self.buffer[self.ptr] = self.inputs["in"].value
+
+        # 3. Advance pointer
+        self.ptr = (self.ptr + 1) % (n + 1)
 
     def get_editor_dialog(self, parent=None):
         """Return the custom configuration dialog."""

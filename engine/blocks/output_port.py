@@ -21,7 +21,7 @@ class OutputPort(BlockModel):
     def _update_label(self):
         self.name = f"Out: {self.params.get('PortName', 'Out1')}"
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # Pass-through. SubSystem reads self.inputs['in'] after this runs.
         pass
 

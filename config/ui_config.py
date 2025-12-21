@@ -22,7 +22,7 @@ class UIConfig:
     
     INPUT_PORT_COLOR = QColor("orange")
     OUTPUT_PORT_COLOR = QColor("green")
-    PORT_SIZE = 10
+    PORT_SIZE = 14
     
     TEXT_COLOR = QColor(220, 220, 220)
     TITLE_COLOR = QColor(255, 255, 255)
@@ -34,7 +34,7 @@ class UIConfig:
     # Block Dimensions
     DEFAULT_BLOCK_WIDTH = 100
     DEFAULT_BLOCK_HEIGHT = 60
-    PORT_VERTICAL_SPACING = 20
+    PORT_VERTICAL_SPACING = 25
     PORT_MARGIN = 20
     
     # Rendering

@@ -21,7 +21,7 @@ class Abs(BlockModel):
         self.add_input("in")
         self.add_output("out")
         
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         inp = self.inputs["in"].value
         self.outputs["out"].value = np.abs(inp)
 

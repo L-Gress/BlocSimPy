@@ -275,18 +275,18 @@ class SubGraph(BlockModel):
 
         self.running = True
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         """
         Main execution Step.
         """
         mode = self.params.get("Execution Mode", "Standard")
         
         if mode == "Standard":
-            self._compute_standard(t, dt)
+            self._compute_standard(t, dt, context=context)
         else:
-            self._compute_async(t, dt)
+            self._compute_async(t, dt, context=context)
 
-    def _compute_standard(self, t, dt):
+    def _compute_standard(self, t, dt, context=None):
         if not self.execution_blocks: return
 
         # 1. Bridge External Inputs -> Internal InputPorts
@@ -297,14 +297,23 @@ class SubGraph(BlockModel):
                     b.outputs["out"].value = self.inputs[p_name].value
 
         # 2. Run Internal Blocks
+        # Cache stateful blocks to avoid hasattr() in loop
+        stateful = getattr(self, "_stateful_inner", None)
+        if stateful is None:
+            stateful = [b for b in self.execution_blocks if hasattr(b, "update_state")]
+            self._stateful_inner = stateful
+
+        # Compute
         for b in self.execution_blocks:
             # Transfer data internally
-            for name, port in b.inputs.items():
+            for port in b.inputs.values():
                 if port.connected_port:
                     port.value = port.connected_port.value
-            b.compute(t, dt)
-            if hasattr(b, 'update_state'):
-                b.update_state(t, dt)
+            b.compute(t, dt, context=context)
+            
+        # Update State
+        for b in stateful:
+            b.update_state(t, dt, context=context)
 
         # 3. Bridge Internal OutputPorts -> External Outputs
         for b in self.execution_blocks:
@@ -313,7 +322,7 @@ class SubGraph(BlockModel):
                 if p_name in self.outputs:
                         self.outputs[p_name].value = b.inputs["in"].value
 
-    def _compute_async(self, t, dt):
+    def _compute_async(self, t, dt, context=None):
         """
         Async Bridge:
         Main Thread Pushes Inputs -> Queue -> Worker Thread

@@ -100,12 +100,21 @@ class AudioInput(BlockModel):
         self.add_output("out")
         self.add_param("Channel", 0)
         self.add_param("Device", "default")
-        
-    def compute(self, t, dt):
-        # CRITICAL: This must be empty (pass).
-        # The value is set EXTERNALLY by the server callback loop BEFORE this is called.
-        # If you set self.outputs["out"].value = 0 here, you silence the input.
-        pass
+        self._cached_channel = 0
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name == "params":
+            try:
+                self._cached_channel = int(float(self.params.get("Channel", 0)))
+            except:
+                self._cached_channel = 0
+
+    def compute(self, t, dt, context=None):
+        if context and context.indata is not None:
+            ch = self._cached_channel
+            if ch < context.indata.shape[1]:
+                self.outputs["out"].value = float(context.indata[context.frame_idx, ch])
 
     def get_editor_dialog(self, parent=None):
         return AudioDeviceDialog(self.params, mode="input", parent=parent)

@@ -19,38 +19,45 @@ class Integrator(BlockModel):
         
         self.state = 0.0
         self.initialized = False
+        self._cached_ic = 0.0
         
         # Set a nice label
         self.name = "∫"
+        self._cache_params()
 
-    def compute(self, t, dt):
+    def _cache_params(self):
+        try:
+            self._cached_ic = float(self.params.get("InitialCondition", 0.0))
+        except:
+            self._cached_ic = 0.0
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name == "params" and hasattr(self, "_cache_params"):
+            self._cache_params()
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._cache_params()
+
+    def compute(self, t, dt, context=None):
         # 1. Initialization Logic
         if not self.initialized:
-            try:
-                self.state = float(self.params["InitialCondition"])
-            except:
-                self.state = 0.0
+            self.state = self._cached_ic
             self.initialized = True
 
-        # 2. Set the Output (Send current memory to the wire)
+        # 2. Set the Output
         self.outputs["out"].value = self.state
 
-        # 3. Calculate the State for the NEXT loop (The fix!)
-        # Check if input is connected
-        inp = 0.0
-        if "in" in self.inputs:
-            inp = float(self.inputs["in"].value)
-            
+    def update_state(self, t, dt, context=None):
         # Perform the integration (Euler: New = Old + Input * TimeStep)
-        self.state += inp * dt
+        inp = self.inputs["in"].value if "in" in self.inputs else 0.0
+        self.state += float(inp) * dt
 
     def reset(self):
         """Reset state to Initial Condition on stop/start."""
         self.initialized = False
-        try:
-            self.state = float(self.params.get("InitialCondition", 0.0))
-        except:
-            self.state = 0.0
+        self.state = self._cached_ic
 
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox

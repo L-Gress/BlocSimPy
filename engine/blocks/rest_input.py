@@ -25,7 +25,7 @@ class RestInput(BlockModel):
         except ValueError:
             self.current_value = 0.0
 
-    def compute(self, time, dt):
+    def compute(self, time, dt, context=None):
         self.outputs["out"].value = self.current_value
         
     def _set_value_with_type(self, value):

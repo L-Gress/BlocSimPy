@@ -23,7 +23,7 @@ class Divide(BlockModel):
         # Set the display name to the math symbol
         self.name = "÷"
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # Default to 0.0 if not connected
         v1 = self.inputs["num"].value if "num" in self.inputs else 0.0
         v2 = self.inputs["den"].value if "den" in self.inputs else 0.0

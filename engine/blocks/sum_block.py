@@ -18,7 +18,7 @@ class Sum(BlockModel):
         self.add_input("in2")
         self.add_output("out")
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         self.outputs["out"].value = self.inputs["in1"].value + self.inputs["in2"].value
 
     def get_editor_dialog(self, parent=None):

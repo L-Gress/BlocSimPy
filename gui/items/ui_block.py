@@ -38,7 +38,7 @@ class UIBlock(QGraphicsItem):
         y_offset = UIConfig.PORT_MARGIN
         for name in self.model.inputs:
             p = UIPort(self, self.model.inputs[name], True)
-            p.setPos(-5, y_offset) 
+            p.setPos(-7, y_offset) 
             self.ports_ui[name] = p
             y_offset += UIConfig.PORT_VERTICAL_SPACING
 
@@ -46,7 +46,7 @@ class UIBlock(QGraphicsItem):
         y_offset = UIConfig.PORT_MARGIN
         for name in self.model.outputs:
             p = UIPort(self, self.model.outputs[name], False)
-            p.setPos(self.width - 5, y_offset)
+            p.setPos(self.width - 7, y_offset)
             self.ports_ui[name] = p
             y_offset += UIConfig.PORT_VERTICAL_SPACING
 
@@ -96,8 +96,9 @@ class UIBlock(QGraphicsItem):
             painter.save()
             
             # Visual center of port
-            px = port.pos().x() + UIConfig.PORT_SIZE / 2
-            py = port.pos().y() + UIConfig.PORT_SIZE / 2
+            center = port.boundingRect().center()
+            px = port.pos().x() + center.x()
+            py = port.pos().y() + center.y()
             
             painter.translate(px, py)
             painter.rotate(-self.rotation())
@@ -191,10 +192,18 @@ class UIBlock(QGraphicsItem):
             if editor:
                 editor.exec()
                 
-                # Check if ports need to be refreshed (e.g., Scope added/removed inputs)
                 if hasattr(self.model, 'needs_port_refresh') and self.model.needs_port_refresh:
                     self.refresh_ports()
                     self.model.needs_port_refresh = False
+                    
+                    # Snapshot after dynamic change
+                    scene = self.scene()
+                    if scene:
+                        views = scene.views()
+                        if views:
+                            main_window = views[0].parent()
+                            if hasattr(main_window, 'scene_manager'):
+                                main_window.scene_manager.take_snapshot()
                     
         super().mouseDoubleClickEvent(event)
 
@@ -215,6 +224,7 @@ class UIBlock(QGraphicsItem):
         
         self.ports_ui = {}
         self._setup_ports()  # Uses the logic we wrote previously (max height etc)
+        self.prepareGeometryChange()
         self.update()  # Redraw block
 
         # 3. Attempt to Reconnect

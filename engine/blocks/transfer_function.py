@@ -150,7 +150,7 @@ class TransferFunction(BlockModel):
         if len(self.states) != target_order:
             self.states = [0.0] * target_order
 
-    def compute(self, t, dt):
+    def compute(self, t, dt, context=None):
         # ... (Existing Logic Unchanged) ...
         if dt <= 0: return
 

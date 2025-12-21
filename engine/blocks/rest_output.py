@@ -17,7 +17,7 @@ class RestOutput(BlockModel):
         self.add_input("in")
         self.last_value = 0.0
 
-    def compute(self, time, dt):
+    def compute(self, time, dt, context=None):
         # We store the raw value, typing happens on read/get if needed, 
         # but generally ports carry generic values.
         # However, for consistency we might want to cast it here or in get_value
