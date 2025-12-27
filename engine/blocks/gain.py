@@ -39,6 +39,11 @@ class Gain(BlockModel):
         u = self.inputs["in"].value if "in" in self.inputs else 0.0
         self.outputs["out"].value = u * self._cached_gain
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        if "in" in self.inputs:
+            # Use NumPy multiplication for the entire chunk
+            self.outputs["out"].vector_value = self.inputs["in"].vector_value * self._cached_gain
+
     # --- FIX 1: Catch when the params dictionary is replaced (e.g., JSON load) ---
     def __setattr__(self, name, value):
         # Perform the standard assignment

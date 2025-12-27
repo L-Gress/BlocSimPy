@@ -2,6 +2,7 @@ import threading
 import time
 import sys
 from engine.simulation.executor import ExecutionOrdering
+import numpy as np
 
 from engine.models import RuntimeContext
 
@@ -15,35 +16,47 @@ class AudioProcessor:
         # Pre-filter blocks that have update_state to avoid hasattr in callback
         self.stateful_blocks = [b for b in self.sorted_blocks if hasattr(b, 'update_state')]
         
+        # Pre-allocate RuntimeContext
+        self.ctx = RuntimeContext()
+        
+        # Ensure all ports have buffers allocated (optional but good for stability)
+        # We use a default block size, but ports will resize if needed.
+        self._initial_block_size = 1024 # Placeholder, actual frames will be used in callback
+        
     def callback(self, indata, outdata, frames, time_info, status):
         """Audio callback running in a high-priority hardware thread."""
         if status:
-            print(f"Stream Status: {status}", file=sys.stderr, flush=True)
+            try:
+                print(f"Stream Status: {status}", file=sys.stderr, flush=True)
+            except:
+                pass
             
-        outdata.fill(0)
-        
+        # 1. Prepare Time Vector and Context
         dt = self.dt
         current_t = self.time
-        sorted_blocks = self.sorted_blocks
-        stateful_blocks = self.stateful_blocks
+        t_vec = current_t + np.arange(frames) * dt
         
-        # We reuse one context object to avoid allocations
-        ctx = RuntimeContext(indata=indata, outdata=outdata, frame_idx=0)
+        ctx = self.ctx
+        ctx.indata = indata
+        ctx.outdata = outdata
+        ctx.frame_idx = 0
         
-        for i in range(frames):
-            ctx.frame_idx = i
+        # 2. Ensure all port buffers match the current frame count
+        for block in self.sorted_blocks:
+            for port in block.inputs.values():
+                port.ensure_buffer(frames)
+            for port in block.outputs.values():
+                port.ensure_buffer(frames)
+
+        # 3. Vectorized Computation Pass
+        for block in self.sorted_blocks:
+            block.compute_chunk(t_vec, dt, context=ctx)
+        
+        # 4. Vectorized State Update Pass
+        for block in self.stateful_blocks:
+            block.update_state_chunk(t_vec, dt, context=ctx)
             
-            # 1. Compute all blocks (Includes Audio IO blocks via context)
-            for block in sorted_blocks:
-                block.compute(current_t, dt, context=ctx)
-            
-            # 2. Update state for stateful blocks
-            for block in stateful_blocks:
-                block.update_state(current_t, dt, context=ctx)
-                
-            current_t += dt
-            
-        self.time = current_t
+        self.time = current_t + frames * dt
 
 class TimerProcessor:
     """Runs simulation based on system clock (independent of audio hardware)."""

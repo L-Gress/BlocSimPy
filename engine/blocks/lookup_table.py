@@ -150,6 +150,28 @@ class LookupTable(BlockModel):
         except Exception as e:
             self.outputs["out"].value = 0.0
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        try:
+            table = self.params["Table"]
+            if isinstance(table, str):
+                xs = np.fromstring(table.split('|')[0], sep=',')
+                ys = np.fromstring(table.split('|')[1], sep=',')
+            else:
+                table = list(table) if not isinstance(table, list) else table
+                if table:
+                    xs, ys = zip(*table)
+                    xs = np.array(xs)
+                    ys = np.array(ys)
+                else:
+                    self.outputs["out"].vector_value.fill(0.0)
+                    return
+
+            inp = self.inputs["in"].vector_value
+            # np.interp works with arrays for input 'x'
+            self.outputs["out"].vector_value = np.interp(inp, xs, ys)
+        except Exception as e:
+            self.outputs["out"].vector_value.fill(0.0)
+
     def get_editor_dialog(self, parent=None):
         """Return a custom dialog for editing the lookup table."""
         dialog = LookupTableDialog(parent, self.params.get("Table", []))

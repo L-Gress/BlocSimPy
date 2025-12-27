@@ -37,5 +37,27 @@ class Derivative(BlockModel):
         self.outputs["out"].value = float(res)
         self.last_input = u
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        u_vec = self.inputs["in"].vector_value
+        
+        if not self.initialized:
+            self.last_input = u_vec[0] # Approximation for first start? Or 0?
+            self.initialized = True
+            
+        # We need difference between u[k] and u[k-1].
+        # Prepend last input from previous chunk.
+        
+        import numpy as np
+        extended = np.hstack(([self.last_input], u_vec))
+        diffs = np.diff(extended)
+        
+        if dt > 0:
+            res = diffs / dt
+        else:
+            res = np.zeros_like(u_vec)
+            
+        self.outputs["out"].vector_value = res
+        self.last_input = u_vec[-1]
+
     def get_editor_dialog(self, parent=None):
         return None

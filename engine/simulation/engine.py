@@ -1,6 +1,6 @@
 """Simulation engine for running block diagrams."""
 import numpy as np
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from ..models import BlockModel
 from .executor import ExecutionOrdering
 
@@ -86,7 +86,7 @@ class SimulationEngine:
         
         return result
     
-    def validate(self) -> tuple[bool, str]:
+    def validate(self) -> "Tuple[bool, str]":
         """
         Validate the simulation configuration.
         

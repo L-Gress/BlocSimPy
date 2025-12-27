@@ -1,5 +1,5 @@
 """Graph serialization and deserialization."""
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 from ..blocks import BLOCK_REGISTRY
 
 
@@ -58,7 +58,7 @@ class GraphSerializer:
         return data
     
     @staticmethod
-    def deserialize_graph(data: Dict[str, Any]) -> tuple[List[Any], List[Dict[str, Any]]]:
+    def deserialize_graph(data: Dict[str, Any]) -> Tuple[List[Any], List[Dict[str, Any]]]:
         """
         Deserialize a graph from a dictionary.
         

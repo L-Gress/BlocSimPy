@@ -33,6 +33,13 @@ class Product(BlockModel):
         
         self.outputs["out"].value = v1 * v2
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        # Default to 0.0 (or array of zeros) if not connected is handled by input ports usually returning 0.0 scalar
+        # or we should check. PortModel.vector_value returns _buffer (zeros) if unconnected.
+        v1 = self.inputs["in1"].vector_value
+        v2 = self.inputs["in2"].vector_value
+        self.outputs["out"].vector_value = v1 * v2
+
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QDialogButtonBox
         

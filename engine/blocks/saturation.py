@@ -42,6 +42,11 @@ class Saturation(BlockModel):
         res = max(self._lower, min(self._upper, val))
         self.outputs["out"].value = float(res)
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        val = self.inputs["in"].vector_value
+        # np.clip allows lower and upper bounds
+        self.outputs["out"].vector_value = np.clip(val, self._lower, self._upper)
+
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox
         dialog = QDialog(parent)

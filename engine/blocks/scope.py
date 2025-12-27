@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QGroupBox, QTabWidget, QWidget, QCheckBox
 )
 from PySide6.QtCore import Qt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 
 

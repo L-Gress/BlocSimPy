@@ -44,6 +44,24 @@ class Ramp(BlockModel):
         else:
             self.outputs["out"].value = self._init_out + self._slope * (t - self._start_t)
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        # Vectorized Ramp generation
+        # We can use np.where or standard arithmetic since it's element-wise
+        # cond = t_vec > self._start_t
+        # res = self._init_out + self._slope * (t_vec - self._start_t)
+        # out = np.where(cond, res, self._init_out)
+        
+        # Or faster: max(0, t - start) * slope + init 
+        # But we need exactly init if t <= start.
+        # (t - start) is negative.
+        # So we want slope * max(0, t - start) + init ?
+        # If t < start, slope*(negative) would be subtracted if we didn't clamp.
+        # If we want output = init, then yes, slope*0 + init = init.
+        
+        delta = t_vec - self._start_t
+        delta = np.maximum(0.0, delta)
+        self.outputs["out"].vector_value = self._init_out + self._slope * delta
+
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox
         dialog = QDialog(parent)

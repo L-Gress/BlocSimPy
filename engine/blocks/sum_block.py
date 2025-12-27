@@ -19,7 +19,14 @@ class Sum(BlockModel):
         self.add_output("out")
 
     def compute(self, t, dt, context=None):
-        self.outputs["out"].value = self.inputs["in1"].value + self.inputs["in2"].value
+        v1 = self.inputs["in1"].value 
+        v2 = self.inputs["in2"].value
+        self.outputs["out"].value = v1 + v2
+
+    def compute_chunk(self, t_vec, dt, context=None):
+        v1 = self.inputs["in1"].vector_value
+        v2 = self.inputs["in2"].vector_value
+        self.outputs["out"].vector_value = v1 + v2
 
     def get_editor_dialog(self, parent=None):
         """Sum has no parameters, return None."""

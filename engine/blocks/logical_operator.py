@@ -60,6 +60,38 @@ class LogicalOperator(BlockModel):
         # Output 1.0 or 0.0
         self.outputs["out"].value = 1.0 if result else 0.0
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        import numpy as np
+        # 1. Get Inputs (Vectorized)
+        val_a = self.inputs["in1"].vector_value
+        val_b = self.inputs["in2"].vector_value
+        
+        # Convert to boolean (element-wise check if not zero)
+        bool_a = val_a != 0.0
+        bool_b = val_b != 0.0
+        
+        op = self.params.get("Operator", "AND")
+        result = None
+        
+        if op == "AND":
+            result = np.logical_and(bool_a, bool_b)
+        elif op == "OR":
+            result = np.logical_or(bool_a, bool_b)
+        elif op == "NOT":
+            result = np.logical_not(bool_a)
+        elif op == "XOR":
+            result = np.logical_xor(bool_a, bool_b)
+        elif op == "NAND":
+            result = np.logical_not(np.logical_and(bool_a, bool_b))
+        elif op == "NOR":
+            result = np.logical_not(np.logical_or(bool_a, bool_b))
+            
+        # Convert boolean array to float (1.0 or 0.0)
+        if result is not None:
+            self.outputs["out"].vector_value = result.astype(float)
+        else:
+            self.outputs["out"].vector_value.fill(0.0)
+
     # --- Safety hooks for loading files ---
     def __setattr__(self, name, value):
         super().__setattr__(name, value)

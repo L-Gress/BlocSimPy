@@ -10,12 +10,17 @@ import state as state_module
 class RequestHandler(http.server.BaseHTTPRequestHandler):
     
     def log_message(self, format, *args):
-        # Override to ensure flush
-        sys.stderr.write("%s - - [%s] %s\n" %
-                         (self.client_address[0],
-                          self.log_date_time_string(),
-                          format % args))
-        sys.stderr.flush()
+        # Override to ensure flush and handle invalid handle errors on Windows
+        try:
+            sys.stderr.write("%s - - [%s] %s\n" %
+                             (self.client_address[0],
+                              self.log_date_time_string(),
+                              format % args))
+            sys.stderr.flush()
+        except OSError:
+            # On some Windows environments, stderr might become invalid (WinError 6)
+            # We don't want the whole server to crash because logging failed.
+            pass
 
     def _send_json(self, data, code=200):
         self.send_response(code)

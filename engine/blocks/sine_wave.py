@@ -41,8 +41,11 @@ class SineWave(BlockModel):
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
-        if name == "params" and hasattr(self, "_cached_amp"):
-            self._init_caches()
+        if name == "params":
+            if hasattr(self, "update_io"):
+                self.update_io()
+            if hasattr(self, "_cached_amp"):
+                self._init_caches()
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -72,10 +75,18 @@ class SineWave(BlockModel):
 
         self.outputs["out"].value = amp * np.sin(self._two_pi * freq * time_val + phase)
 
-    # Hooks to ensure structure is correct after loading
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self.update_io()
+    def compute_chunk(self, t_vec, dt, context=None):
+        # Determine time source vector
+        if self.params.get("Use External Time", "False") == "True" and "time" in self.inputs:
+            time_src = self.inputs["time"].vector_value
+        else:
+            time_src = t_vec
+            
+        # Parallel generation of the wave chunk
+        self.outputs["out"].vector_value = self._cached_amp * np.sin(
+            self._two_pi * self._cached_freq * time_src + self._cached_phase
+        )
+
 
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QCheckBox, QDialogButtonBox

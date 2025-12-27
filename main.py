@@ -5,7 +5,7 @@ refactored `MainWindow` from `gui.main_window`.
 """
 import sys
 import matplotlib
-matplotlib.use('Qt5Agg')
+matplotlib.use('QtAgg')
 
 from PySide6.QtWidgets import QApplication
 from gui.main_window import MainWindow

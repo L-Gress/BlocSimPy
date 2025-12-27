@@ -37,6 +37,10 @@ class Constant(BlockModel):
     def compute(self, t, dt, context=None):
         self.outputs["out"].value = self._cached_value
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        # Fill buffer with constant value
+        self.outputs["out"].vector_value.fill(self._cached_value)
+
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
         if name == "params" and hasattr(self, "_update_label"):

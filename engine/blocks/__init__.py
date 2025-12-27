@@ -32,8 +32,6 @@ from .ramp import Ramp
 from .switch import Switch
 from .derivative import Derivative
 from .math_func import MathFunction
-from .fft import FFT
-from .ifft import IFFT
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -65,9 +63,7 @@ BLOCK_REGISTRY = {
     "Min": Min,
     "RestInput": RestInput,
     "RestOutput": RestOutput,
-    "AudioRead": AudioRead,
-    "FFT": FFT,
-    "IFFT": IFFT,
+    "AudioRead": AudioRead,s
     "Saturation": Saturation,
     "Ramp": Ramp,
     "Switch": Switch,

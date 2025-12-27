@@ -116,5 +116,12 @@ class AudioInput(BlockModel):
             if ch < context.indata.shape[1]:
                 self.outputs["out"].value = float(context.indata[context.frame_idx, ch])
 
+    def compute_chunk(self, t_vec, dt, context=None):
+        if context and context.indata is not None:
+            ch = self._cached_channel
+            if ch < context.indata.shape[1]:
+                # Directly assign the buffer slice to the output port
+                self.outputs["out"].vector_value = context.indata[:, ch]
+
     def get_editor_dialog(self, parent=None):
         return AudioDeviceDialog(self.params, mode="input", parent=parent)

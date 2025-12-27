@@ -1,4 +1,5 @@
 from collections import deque
+import numpy as np
 from ..models import BlockModel
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, 
                                QSpinBox, QDoubleSpinBox, QDialogButtonBox)
