@@ -61,11 +61,16 @@ class SimulationEngine:
             # Time vector
             time_vec = np.arange(0, self.duration, self.dt)
             result.time = time_vec
-            
+
+            # Cache stateful blocks to avoid hasattr() every step
+            stateful_blocks = [b for b in sorted_blocks if hasattr(b, 'update_state')]
+
             # Main simulation loop
             for t in time_vec:
                 for block in sorted_blocks:
                     block.compute(t, self.dt)
+                for block in stateful_blocks:
+                    block.update_state(t, self.dt)
             
             # Collect scope data
             for block in sorted_blocks:

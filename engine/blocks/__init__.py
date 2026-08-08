@@ -22,8 +22,6 @@ from .delay import Delay
 from .abs import Abs
 from .max import Max
 from .min import Min
-from .rest_input import RestInput
-from .rest_output import RestOutput
 from .modulo import Modulo
 from .audio_record import AudioRecord
 from .audio_read import AudioRead
@@ -61,9 +59,7 @@ BLOCK_REGISTRY = {
     "MathFunction": MathFunction,
     "Max": Max,
     "Min": Min,
-    "RestInput": RestInput,
-    "RestOutput": RestOutput,
-    "AudioRead": AudioRead,s
+    "AudioRead": AudioRead,
     "Saturation": Saturation,
     "Ramp": Ramp,
     "Switch": Switch,

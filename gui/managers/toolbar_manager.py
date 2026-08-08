@@ -1,12 +1,12 @@
 """Manages toolbar creation and toolbar actions."""
-from PySide6.QtWidgets import QToolBar, QMessageBox
+from PySide6.QtWidgets import (
+    QToolBar, QMessageBox, QDialog, QVBoxLayout, QLabel, QPushButton
+)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from ..dialogs import SimulationSettingsDialog, CloudManagerDialog
+from ..dialogs import SimulationSettingsDialog
 from engine.simulation import SimulationEngine
 from engine.serialization import GraphSerializer
-import urllib.request
-import json
 
 
 class ToolbarManager:
@@ -31,11 +31,7 @@ class ToolbarManager:
         action_run = QAction("▶ Run", self.main_window)
         action_run.triggered.connect(self.run_simulation)
         self.toolbar.addAction(action_run)
-        
-        action_cloud = QAction("☁️ Cloud Manager", self.main_window)
-        action_cloud.triggered.connect(self.show_cloud_manager)
-        self.toolbar.addAction(action_cloud)
-        
+
         self.toolbar.addSeparator()
         
         # File actions
@@ -97,45 +93,43 @@ class ToolbarManager:
                 self.sim_dt = dt
     
     def run_simulation(self):
-        """Run the simulation locally."""
+        """Run the simulation locally.
+
+        Graphs containing Audio I/O blocks run live against the sound
+        hardware (hardware-clocked, until stopped); all other graphs run
+        as a fixed-duration batch simulation.
+        """
         if not self.main_window.scene_manager.blocks_ui:
             QMessageBox.warning(self.main_window, "No Blocks", "Add blocks to the scene first.")
             return
 
-        # Check for Audio Blocks
-        for ui_block in self.main_window.scene_manager.blocks_ui:
-            name = ui_block.model.__class__.__name__
-            if name in ["AudioInput", "AudioOutput"]:
-                QMessageBox.critical(
-                    self.main_window, 
-                    "Simulation Error", 
-                    "Cannot Run local simulation with Audio blocks.\n"
-                    "Please use 'Deploy' instead."
-                )
-                return
-        
-        # Create simulation engine
-        engine = SimulationEngine()
-        
         # Collect all block models
         block_models = [ui_block.model for ui_block in self.main_window.scene_manager.blocks_ui]
-        
+
+        has_audio_io = any(b.__class__.__name__ in ["AudioInput", "AudioOutput"] for b in block_models)
+        if has_audio_io:
+            self._run_audio_realtime(block_models)
+            return
+
+        # Create simulation engine
+        engine = SimulationEngine()
+
         # Configure engine
         engine.configure(block_models, self.sim_duration, self.sim_dt)
-        
+
         # Validate
         is_valid, error_msg = engine.validate()
         if not is_valid:
             QMessageBox.critical(self.main_window, "Validation Error", error_msg)
             return
-        
+
         # Run simulation
         result = engine.run()
-        
+
         if not result.success:
             QMessageBox.critical(self.main_window, "Simulation Error", result.error_message)
             return
-        
+
         # Display results
         QMessageBox.information(
             self.main_window,
@@ -144,7 +138,55 @@ class ToolbarManager:
             "Double-click any Scope block to view its data."
         )
 
-    def show_cloud_manager(self):
-        """Show the integrated Cloud Manager dialog."""
-        dialog = CloudManagerDialog(self.main_window)
-        dialog.exec()
+    def _run_audio_realtime(self, block_models):
+        """Stream an audio-driven graph against the sound hardware until the user stops it."""
+        import sounddevice as sd
+        from engine.simulation.processors import AudioProcessor
+
+        for block in block_models:
+            if hasattr(block, "reset"):
+                block.reset()
+
+        sample_rate = 44100
+        buffer_size = 1024
+
+        # Device selection: honor per-block "Device" params if the user picked one.
+        in_device = None
+        out_device = None
+        for block in block_models:
+            dev = block.params.get("Device")
+            if not dev or dev == "default":
+                continue
+            try:
+                val = int(dev)
+            except (TypeError, ValueError):
+                val = dev
+            if block.__class__.__name__ == "AudioInput":
+                in_device = val
+            elif block.__class__.__name__ == "AudioOutput":
+                out_device = val
+
+        processor = AudioProcessor(block_models, sample_rate)
+
+        try:
+            stream = sd.Stream(channels=2, samplerate=sample_rate, blocksize=buffer_size,
+                                callback=processor.callback, device=(in_device, out_device),
+                                latency='low')
+            stream.start()
+        except Exception as e:
+            QMessageBox.critical(self.main_window, "Audio Error", f"Could not start audio stream: {e}")
+            return
+
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle("Running (Audio)")
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Audio simulation is running live.\nClose this window to stop."))
+        btn_stop = QPushButton("⏹ Stop")
+        btn_stop.clicked.connect(dialog.accept)
+        layout.addWidget(btn_stop)
+
+        try:
+            dialog.exec()
+        finally:
+            stream.stop()
+            stream.close()

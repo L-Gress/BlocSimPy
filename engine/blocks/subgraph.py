@@ -163,7 +163,7 @@ class SubGraph(BlockModel):
 
     def _setup_async_execution(self, mode):
         """Initialize queues and start the worker thread."""
-        from server.processors import TimerProcessor, AudioProcessor
+        from engine.simulation.processors import TimerProcessor, AudioProcessor
         
         # 1. Create Queues 
         # Size=1 means we only keep the LATEST value (Drop Oldest)
@@ -261,16 +261,10 @@ class SubGraph(BlockModel):
             # Ensure rate is int for PortAudio
             int_rate = int(rate)
             buf_size = int(self.params.get("Buffer Size", 256))
-            
-            # Auto-Select WASAPI if possible
-            in_dev = self.processor.get_optimal_audio_device('input')
-            out_dev = self.processor.get_optimal_audio_device('output')
-            devs = (in_dev, out_dev)
-            if in_dev is None and out_dev is None: devs = None
-            
-            self.stream = sd.Stream(channels=2, callback=self.processor.callback, 
+
+            self.stream = sd.Stream(channels=2, callback=self.processor.callback,
                                     samplerate=int_rate, blocksize=buf_size,
-                                    latency='low', device=devs)
+                                    latency='low')
             self.stream.start()
 
         self.running = True

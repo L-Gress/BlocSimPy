@@ -14,7 +14,7 @@ Usage:
 import sys
 import os
 
-# Ensure we can import from engine/server
+# Ensure we can import from engine
 sys.path.append(os.getcwd())
 
 from engine.models import BlockModel
