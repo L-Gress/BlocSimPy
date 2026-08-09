@@ -93,6 +93,9 @@ class TestTransferFunction(unittest.TestCase):
 
     def test_first_order_step_response_converges_to_unity_gain(self):
         # H(s) = 1 / (s + 1): step input of 1.0 should settle near 1.0.
+        # compute() only produces the output from current state; update_state()
+        # (Euler) advances it -- mirrors Integrator's own compute/update_state
+        # split, see conftest.step().
         tf = TransferFunction()
         tf.params["Numerator"] = [1.0]
         tf.params["Denominator"] = [1.0, 1.0]
@@ -100,7 +103,7 @@ class TestTransferFunction(unittest.TestCase):
 
         dt = 0.01
         for i in range(2000):
-            tf.compute(i * dt, dt)
+            step([tf], i * dt, dt)
 
         self.assertAlmostEqual(tf.outputs["out"].value, 1.0, places=2)
 
@@ -110,11 +113,88 @@ class TestTransferFunction(unittest.TestCase):
         tf.params["Denominator"] = [1.0, 1.0]
         tf.inputs["in"].value = 1.0
         for i in range(100):
-            tf.compute(i * 0.01, 0.01)
+            step([tf], i * 0.01, 0.01)
         self.assertTrue(any(s != 0.0 for s in tf.states))
 
         tf.reset()
         self.assertTrue(all(s == 0.0 for s in tf.states))
+
+    def test_compute_alone_does_not_advance_state(self):
+        # Regression guard for the compute()/update_state() split: compute()
+        # must be a pure read of current state, never mutate it -- RK4Solver
+        # depends on being able to call compute() once per step without that
+        # silently doing a Euler integration on the side.
+        tf = TransferFunction()
+        tf.params["Numerator"] = [1.0]
+        tf.params["Denominator"] = [1.0, 1.0]
+        tf.inputs["in"].value = 1.0
+        tf.compute(0.0, 0.01)
+        states_after_one_compute = list(tf.states)
+        tf.compute(0.01, 0.01)
+        self.assertEqual(tf.states, states_after_one_compute)
+
+    def test_compute_chunk_matches_scalar_stepping(self):
+        tf_scalar = TransferFunction()
+        tf_scalar.params["Numerator"] = [1.0]
+        tf_scalar.params["Denominator"] = [1.0, 1.0]
+        tf_scalar.inputs["in"].value = 1.0
+        dt = 0.01
+        for i in range(50):
+            step([tf_scalar], i * dt, dt)
+        scalar_out = tf_scalar.outputs["out"].value
+
+        tf_chunk = TransferFunction()
+        tf_chunk.params["Numerator"] = [1.0]
+        tf_chunk.params["Denominator"] = [1.0, 1.0]
+        tf_chunk.inputs["in"].vector_value = np.full(50, 1.0)
+        t_vec = np.arange(50) * dt
+        tf_chunk.compute_chunk(t_vec, dt)
+        tf_chunk.update_state_chunk(t_vec, dt)
+
+        self.assertAlmostEqual(tf_chunk.outputs["out"].vector_value[-1], scalar_out, places=6)
+
+    def test_get_derivative_is_pure_and_matches_manual_euler_step(self):
+        tf = TransferFunction()
+        tf.params["Numerator"] = [1.0]
+        tf.params["Denominator"] = [1.0, 1.0]
+        tf.inputs["in"].value = 1.0
+        tf.compute(0.0, 0.01)  # refresh matrices/states via cache check
+
+        deriv = tf.get_derivative(0.0, 0.01)
+        self.assertEqual(len(deriv), 1)
+        # H(s) = 1/(s+1) -> state-space: x' = -x + u
+        self.assertAlmostEqual(deriv[0], -tf.states[0] + 1.0, places=6)
+
+        state_before = list(tf.states)
+        tf.get_derivative(0.0, 0.01)
+        self.assertEqual(tf.states, state_before)  # still pure, no mutation
+
+    def test_rk4_solver_converges_faster_than_euler_at_coarse_dt(self):
+        # Both solvers should converge to the analytic steady-state (1.0),
+        # but RK4 should be closer after the same number of coarse steps.
+        from engine.simulation.solvers import EulerSolver, RK4Solver
+
+        def run(solver_cls, dt, steps):
+            tf = TransferFunction()
+            tf.params["Numerator"] = [1.0]
+            tf.params["Denominator"] = [1.0, 1.0]
+            tf.inputs["in"].value = 1.0
+            solver = solver_cls()
+            for i in range(steps):
+                solver.step([tf], [tf], i * dt, dt)
+            # compute() is a pure read of the now-fully-advanced state (see
+            # test_compute_alone_does_not_advance_state), so this reflects
+            # the state after all `steps` integrations without adding another.
+            tf.compute(steps * dt, dt)
+            return tf.outputs["out"].value
+
+        dt = 0.2  # coarse step relative to the time constant (1.0)
+        steps = 15
+        euler_out = run(EulerSolver, dt, steps)
+        rk4_out = run(RK4Solver, dt, steps)
+
+        analytic = 1.0 - np.exp(-dt * steps)
+        self.assertLess(abs(rk4_out - analytic), abs(euler_out - analytic))
 
 
 class TestPID(unittest.TestCase):

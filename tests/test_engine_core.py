@@ -1,12 +1,13 @@
 """Tests for the core simulation engine: execution ordering and batch running."""
 import unittest
 
-from engine.simulation.executor import ExecutionOrdering
+from engine.simulation.executor import ExecutionOrdering, AlgebraicLoopError
 from engine.simulation.engine import SimulationEngine
 from engine.blocks.constant import Constant
 from engine.blocks.gain import Gain
 from engine.blocks.sum_block import Sum
 from engine.blocks.integrator import Integrator
+from engine.blocks.delay import Delay
 from engine.blocks.scope import Scope
 
 from conftest import connect, set_params
@@ -33,18 +34,43 @@ class TestExecutionOrdering(unittest.TestCase):
         ordered = ExecutionOrdering.topological_sort([c1, c2])
         self.assertEqual(set(ordered), {c1, c2})
 
-    def test_topological_sort_cycle_falls_back_to_input_order(self):
-        # Two Gain blocks feeding each other form a cycle; Kahn's algorithm
-        # can't fully order them, so the sort should fall back gracefully
-        # instead of dropping blocks or raising.
+    def test_topological_sort_pure_algebraic_cycle_raises(self):
+        # Two Gain blocks feeding each other directly have no well-defined
+        # evaluation order (each one's output this step depends on the
+        # other's output this same step) -- this must be reported, not
+        # silently resolved by an arbitrary order.
         g1 = Gain()
         g2 = Gain()
         connect(g1, "in", g2)
         connect(g2, "in", g1)
 
-        ordered = ExecutionOrdering.topological_sort([g1, g2])
-        self.assertEqual(len(ordered), 2)
-        self.assertEqual(set(ordered), {g1, g2})
+        with self.assertRaises(AlgebraicLoopError) as ctx:
+            ExecutionOrdering.topological_sort([g1, g2])
+        self.assertEqual(set(ctx.exception.blocks), {g1, g2})
+
+    def test_topological_sort_loop_broken_by_integrator_does_not_raise(self):
+        # Gain -> Integrator -> Gain feedback: the Integrator's output this
+        # step comes from its state (set up by a prior update_state() pass),
+        # not from this step's input, so this loop is well-defined and must
+        # sort successfully.
+        g1 = Gain()
+        integ = Integrator()
+        g2 = Gain()
+        connect(integ, "in", g1)
+        connect(g2, "in", integ)
+        connect(g1, "in", g2)
+
+        ordered = ExecutionOrdering.topological_sort([g1, integ, g2])
+        self.assertEqual(set(ordered), {g1, integ, g2})
+
+    def test_topological_sort_loop_broken_by_delay_does_not_raise(self):
+        g1 = Gain()
+        d = Delay()
+        connect(d, "in", g1)
+        connect(g1, "in", d)
+
+        ordered = ExecutionOrdering.topological_sort([g1, d])
+        self.assertEqual(set(ordered), {g1, d})
 
 
 class TestSimulationEngineValidate(unittest.TestCase):
@@ -146,6 +172,32 @@ class TestSimulationEngineRun(unittest.TestCase):
 
         self.assertTrue(result.success)
         self.assertAlmostEqual(s.outputs["out"].value, 7.0)
+
+    def test_run_reports_failure_for_algebraic_loop(self):
+        g1 = Gain()
+        g2 = Gain()
+        connect(g1, "in", g2)
+        connect(g2, "in", g1)
+
+        engine = SimulationEngine()
+        engine.configure([g1, g2], duration=0.1, dt=0.01)
+        result = engine.run()
+
+        self.assertFalse(result.success)
+        self.assertIn("loop", result.error_message.lower())
+
+    def test_run_accepts_rk4_solver_and_still_integrates(self):
+        c = Constant()
+        c.params["Value"] = 1.0
+        integ = Integrator()
+        connect(integ, "in", c)
+
+        engine = SimulationEngine()
+        engine.configure([c, integ], duration=1.0, dt=0.1, solver="rk4")
+        result = engine.run()
+
+        self.assertTrue(result.success, result.error_message)
+        self.assertAlmostEqual(integ.state, 1.0, places=6)
 
 
 if __name__ == "__main__":

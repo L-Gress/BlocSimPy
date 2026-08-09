@@ -78,6 +78,15 @@ class RuntimeContext:
 
 class BlockModel:
     """Base class for all simulation blocks."""
+
+    # Whether this block's compute() output for step k depends on its own
+    # inputs' values at step k (vs. only on internal state set up by a prior
+    # update_state() pass, like Integrator/Delay). Used by
+    # ExecutionOrdering.topological_sort to distinguish real same-step
+    # dependencies from state-broken feedback loops. True is the safe
+    # default for any block that hasn't been audited.
+    has_direct_feedthrough = True
+
     def __init__(self, name: str):
         self.name = name
         self.id = id(self)
@@ -87,6 +96,25 @@ class BlockModel:
         self.state: np.ndarray = np.array([])
         self.is_container = False
         self.category = "Common"
+
+    def get_derivative(self, t: float, dt: float) -> Optional[np.ndarray]:
+        """For ODE-like stateful blocks: return d(state)/dt at the block's
+        CURRENT internal state, as a flat array, without mutating anything.
+        Return None (the default) to opt out of solvers that need it (e.g.
+        RK4Solver), in which case update_state() (Euler) is used instead.
+        """
+        return None
+
+    def get_state(self) -> Optional[np.ndarray]:
+        """Return the block's internal state as a flat array. Only needs to
+        be implemented by blocks that implement get_derivative()."""
+        return None
+
+    def set_state(self, vec: np.ndarray):
+        """Overwrite the block's internal state from a flat array produced
+        by get_state()/derived from it. Only needs to be implemented by
+        blocks that implement get_derivative()."""
+        pass
 
     def add_input(self, name):
         self.inputs[name] = PortModel(self, name, True)

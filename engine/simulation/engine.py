@@ -3,6 +3,7 @@ import numpy as np
 from typing import List, Dict, Any, Tuple
 from ..models import BlockModel
 from .executor import ExecutionOrdering
+from .solvers import get_solver
 
 
 class SimulationResult:
@@ -29,12 +30,18 @@ class SimulationEngine:
         self.blocks: List[BlockModel] = []
         self.duration: float = 10.0
         self.dt: float = 0.01
-        
-    def configure(self, blocks: List[BlockModel], duration: float, dt: float):
-        """Configure the simulation with blocks and parameters."""
+        self.solver: str = "euler"
+
+    def configure(self, blocks: List[BlockModel], duration: float, dt: float, solver: str = "euler"):
+        """Configure the simulation with blocks and parameters.
+
+        solver: "euler" (default, forward Euler) or "rk4" (classic 4th-order
+        Runge-Kutta, applied per-block -- see engine.simulation.solvers).
+        """
         self.blocks = blocks
         self.duration = duration
         self.dt = dt
+        self.solver = solver
     
     def run(self) -> SimulationResult:
         """
@@ -66,11 +73,9 @@ class SimulationEngine:
             stateful_blocks = [b for b in sorted_blocks if hasattr(b, 'update_state')]
 
             # Main simulation loop
+            solver = get_solver(self.solver)
             for t in time_vec:
-                for block in sorted_blocks:
-                    block.compute(t, self.dt)
-                for block in stateful_blocks:
-                    block.update_state(t, self.dt)
+                solver.step(sorted_blocks, stateful_blocks, t, self.dt)
             
             # Collect scope data
             for block in sorted_blocks:

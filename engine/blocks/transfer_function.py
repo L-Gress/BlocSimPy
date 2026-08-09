@@ -1,12 +1,13 @@
+import numpy as np
 from ..models import BlockModel
 
 class TransferFunction(BlockModel):
     """Continuous-time Transfer Function (Laplace Domain).
-    
+
     Represents H(s) = N(s) / D(s).
     The system is solved via State-Space conversion and numerical integration.
     """
-    
+
     BLOCK_INFO = {
         "description": "Implements continuous transfer function H(s) = N(s)/D(s)",
         "parameters": "Numerator coefficients, Denominator coefficients (comma-separated)",
@@ -14,7 +15,13 @@ class TransferFunction(BlockModel):
         "usage": "Model linear systems, filters, controllers (PID, lead-lag, etc.)",
         "category": "Signal"
     }
-    
+
+    # The D term (direct feedthrough) means this step's output can depend on
+    # this step's input even when D == 0 for the currently configured
+    # coefficients, so this stays conservative (True) rather than being
+    # derived from the live D value.
+    has_direct_feedthrough = True
+
     def __init__(self):
         super().__init__("TransferFunction")
         self.add_input("in")
@@ -150,14 +157,35 @@ class TransferFunction(BlockModel):
         if len(self.states) != target_order:
             self.states = [0.0] * target_order
 
-    def compute(self, t, dt, context=None):
-        # ... (Existing Logic Unchanged) ...
-        if dt <= 0: return
-
+    def _refresh_matrices_if_needed(self):
         current_params = (str(self.params["Numerator"]), str(self.params["Denominator"]))
         if current_params != self._cache_key:
             self._update_matrices()
             self._cache_key = current_params
+
+    def _derivatives_for(self, u, states):
+        """Pure: d(states)/dt at the given state vector, given input u."""
+        n = len(states)
+        if n == 0:
+            return []
+        derivatives = [0.0] * n
+        for i in range(n - 1):
+            derivatives[i] = states[i + 1]
+        last_dot = u
+        for i in range(n):
+            last_dot += self._A_row[i] * states[i]
+        derivatives[n - 1] = last_dot
+        return derivatives
+
+    def compute(self, t, dt, context=None):
+        # Output only. State integration happens in update_state() (Euler)
+        # or is driven externally by a Solver (e.g. RK4) via get_derivative()/
+        # get_state()/set_state() -- see those methods below. This mirrors
+        # the existing Integrator pattern: compute() reads current state,
+        # a later pass advances it.
+        if dt <= 0: return
+
+        self._refresh_matrices_if_needed()
 
         u = float(self.inputs["in"].value) if "in" in self.inputs else 0.0
         n = len(self.states)
@@ -166,23 +194,72 @@ class TransferFunction(BlockModel):
             self.outputs["out"].value = self._D * u
             return
 
-        derivatives = [0.0] * n
-        for i in range(n - 1):
-            derivatives[i] = self.states[i+1]
-        
-        last_dot = u
-        for i in range(n):
-            last_dot += self._A_row[i] * self.states[i]
-        derivatives[n-1] = last_dot
-
         y = self._D * u
         for i in range(n):
             y += self._C[i] * self.states[n - 1 - i]
 
         self.outputs["out"].value = y
 
+    def update_state(self, t, dt, context=None):
+        # Euler integration (default path; RK4Solver bypasses this and uses
+        # get_derivative()/get_state()/set_state() directly instead).
+        if dt <= 0: return
+        n = len(self.states)
+        if n == 0: return
+
+        u = float(self.inputs["in"].value) if "in" in self.inputs else 0.0
+        derivatives = self._derivatives_for(u, self.states)
         for i in range(n):
             self.states[i] += derivatives[i] * dt
+
+    def get_derivative(self, t, dt):
+        self._refresh_matrices_if_needed()
+        n = len(self.states)
+        if n == 0:
+            return np.array([])
+        u = float(self.inputs["in"].value) if "in" in self.inputs else 0.0
+        return np.array(self._derivatives_for(u, self.states))
+
+    def get_state(self):
+        return np.array(self.states, dtype=float)
+
+    def set_state(self, vec):
+        self.states = [float(v) for v in vec]
+
+    def compute_chunk(self, t_vec, dt, context=None):
+        # Custom (not the default per-sample compute()-only shim): state
+        # must advance sample-by-sample WITHIN this pass for the audio/
+        # realtime path to be correct, since this block's dynamics are
+        # sequential (each sample's output depends on the previous sample's
+        # integrated state). update_state_chunk() below is a no-op so the
+        # default chunk shim doesn't try to integrate a second time.
+        if dt <= 0:
+            return
+        self._refresh_matrices_if_needed()
+
+        u_vec = self.inputs["in"].vector_value if "in" in self.inputs else np.zeros(len(t_vec))
+        n = len(self.states)
+        out = np.zeros(len(t_vec))
+
+        if n == 0:
+            out[:] = self._D * u_vec
+        else:
+            for i in range(len(t_vec)):
+                u = float(u_vec[i])
+                y = self._D * u
+                for j in range(n):
+                    y += self._C[j] * self.states[n - 1 - j]
+                out[i] = y
+
+                derivatives = self._derivatives_for(u, self.states)
+                for j in range(n):
+                    self.states[j] += derivatives[j] * dt
+
+        self.outputs["out"].vector_value = out
+
+    def update_state_chunk(self, t_vec, dt, context=None):
+        # State was already advanced inline inside compute_chunk() above.
+        pass
 
     def reset(self):
         self.states = [0.0] * len(self.states)

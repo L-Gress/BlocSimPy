@@ -8,17 +8,31 @@ execution modes.
 import threading
 import time
 import sys
-from .executor import ExecutionOrdering
+from .executor import ExecutionOrdering, AlgebraicLoopError
 import numpy as np
 
 from ..models import RuntimeContext
+
+
+def _sorted_or_fallback(blocks):
+    """Real-time processors run every block every tick regardless of order
+    correctness for algebraic loops (out of scope for this solver/ordering
+    work -- see engine.simulation.solvers docstring), so a genuine loop
+    falls back to insertion order here instead of failing to start, exactly
+    like ExecutionOrdering.topological_sort used to for ANY cycle before
+    strict detection was added for the batch SimulationEngine."""
+    try:
+        return ExecutionOrdering.topological_sort(blocks)
+    except AlgebraicLoopError:
+        return list(blocks)
+
 
 class AudioProcessor:
     def __init__(self, blocks, sample_rate):
         self.blocks = blocks
         self.dt = 1.0 / sample_rate
         self.time = 0.0
-        self.sorted_blocks = ExecutionOrdering.topological_sort(self.blocks)
+        self.sorted_blocks = _sorted_or_fallback(self.blocks)
 
         # Pre-filter blocks that have update_state to avoid hasattr in callback
         self.stateful_blocks = [b for b in self.sorted_blocks if hasattr(b, 'update_state')]
@@ -73,7 +87,7 @@ class TimerProcessor:
         self.rate = rate
         self.time = 0.0
         self.steps_per_batch = steps_per_batch
-        self.sorted_blocks = ExecutionOrdering.topological_sort(self.blocks)
+        self.sorted_blocks = _sorted_or_fallback(self.blocks)
 
         # Determine strict sleep time
         self.target_interval = self.dt * self.steps_per_batch

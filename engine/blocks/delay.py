@@ -60,7 +60,12 @@ class Delay(BlockModel):
         "usage": "Use to create echo effects, digital filters, or feedback loops.",
         "category": "Signal"
     }
-    
+
+    # This step's output comes from the ring buffer (set up by a prior
+    # step), never from this step's own input, so it doesn't force ordering
+    # on whatever feeds it.
+    has_direct_feedthrough = False
+
     def __init__(self):
         super().__init__("Delay")
         self.add_input("in")

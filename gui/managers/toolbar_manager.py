@@ -16,6 +16,7 @@ class ToolbarManager:
         self.main_window = main_window
         self.sim_duration = 10.0
         self.sim_dt = 0.01
+        self.sim_solver = "euler"
         self.toolbar = None
         
     def create_toolbar(self):
@@ -84,13 +85,15 @@ class ToolbarManager:
         dialog = SimulationSettingsDialog(
             self.main_window,
             current_duration=self.sim_duration,
-            current_dt=self.sim_dt
+            current_dt=self.sim_dt,
+            current_solver=self.sim_solver
         )
         if dialog.exec():
             duration, dt = dialog.get_values()
             if duration and dt:
                 self.sim_duration = duration
                 self.sim_dt = dt
+                self.sim_solver = dialog.get_solver()
     
     def run_simulation(self):
         """Run the simulation locally.
@@ -115,7 +118,7 @@ class ToolbarManager:
         engine = SimulationEngine()
 
         # Configure engine
-        engine.configure(block_models, self.sim_duration, self.sim_dt)
+        engine.configure(block_models, self.sim_duration, self.sim_dt, solver=self.sim_solver)
 
         # Validate
         is_valid, error_msg = engine.validate()

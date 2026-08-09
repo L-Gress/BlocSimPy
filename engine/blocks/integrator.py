@@ -1,8 +1,9 @@
+import numpy as np
 from ..models import BlockModel
 
 class Integrator(BlockModel):
     """Integrator block - integrates signal over time."""
-    
+
     BLOCK_INFO = {
         "description": "Integrates input signal over time (Euler method)",
         "parameters": "Initial Condition",
@@ -10,7 +11,12 @@ class Integrator(BlockModel):
         "usage": "Dynamic systems, state estimation",
         "category": "Signal"
     }
-    
+
+    # compute() only ever reads self.state (set by a prior update_state()
+    # pass), never this step's input directly, so it doesn't force ordering
+    # on whatever feeds it.
+    has_direct_feedthrough = False
+
     def __init__(self):
         super().__init__("Integrator")
         self.add_input("in")
@@ -133,6 +139,20 @@ class Integrator(BlockModel):
         # Perform the integration (Euler: New = Old + Input * TimeStep)
         inp = self.inputs["in"].value if "in" in self.inputs else 0.0
         self.state += float(inp) * dt
+
+    def get_derivative(self, t, dt):
+        # d(state)/dt = input, for solvers that integrate beyond Euler (e.g. RK4).
+        inp = self.inputs["in"].value if "in" in self.inputs else 0.0
+        return np.array([float(inp)])
+
+    def get_state(self):
+        if not self.initialized:
+            self.state = self._cached_ic
+            self.initialized = True
+        return np.array([float(self.state)])
+
+    def set_state(self, vec):
+        self.state = float(vec[0])
 
     def reset(self):
         """Reset state to Initial Condition on stop/start."""
