@@ -1,4 +1,5 @@
 from ..models import BlockModel
+import numpy as np
 
 class Min(BlockModel):
     """

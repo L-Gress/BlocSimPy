@@ -124,4 +124,15 @@ class AudioInput(BlockModel):
                 self.outputs["out"].vector_value = context.indata[:, ch]
 
     def get_editor_dialog(self, parent=None):
-        return AudioDeviceDialog(self.params, mode="input", parent=parent)
+        dialog = AudioDeviceDialog(self.params, mode="input", parent=parent)
+
+        # AudioDeviceDialog.accept() mutates self.params in place, which
+        # doesn't fire the __setattr__ hook that refreshes _cached_channel.
+        original_accept = dialog.accept
+
+        def accept_with_cache_refresh():
+            original_accept()
+            self.params = self.params
+
+        dialog.accept = accept_with_cache_refresh
+        return dialog

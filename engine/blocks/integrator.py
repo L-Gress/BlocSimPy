@@ -163,8 +163,10 @@ class Integrator(BlockModel):
                 self.params["InitialCondition"] = float(le.text())
             except ValueError:
                 self.params["InitialCondition"] = 0.0
-            
-            # Reset immediately so the change takes effect if simulation is stopped
+
+            # Refresh the cached initial condition, then reset immediately so
+            # the change takes effect if simulation is stopped.
+            self._cache_params()
             self.reset()
             original_accept()
 

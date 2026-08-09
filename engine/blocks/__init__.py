@@ -55,7 +55,7 @@ BLOCK_REGISTRY = {
     "AudioInput": AudioInput,
     "AudioOutput": AudioOutput,
     "Delay": Delay,
-    "Abs": MathFunction, # Alias for backward compatibility or replacement
+    "Abs": Abs,
     "MathFunction": MathFunction,
     "Max": Max,
     "Min": Min,

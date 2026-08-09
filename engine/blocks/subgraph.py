@@ -133,14 +133,23 @@ class SubGraph(BlockModel):
             if b_type in BLOCK_REGISTRY:
                 instance = BLOCK_REGISTRY[b_type]()
                 instance.params = b_data["params"].copy()
-                
+
                 # Variable Substitution
+                substituted = False
                 for p_key, p_val in instance.params.items():
                     if isinstance(p_val, str) and p_val.strip().startswith("$"):
                         var_name = p_val.strip()[1:]
                         if var_name in self.params:
                             instance.params[p_key] = self.params[var_name]
-                
+                            substituted = True
+
+                if substituted:
+                    # In-place dict mutation above doesn't fire the
+                    # __setattr__ hook several blocks use to refresh cached
+                    # params (e.g. Gain._cached_gain). Reassign to retrigger
+                    # it now that substituted values are in place.
+                    instance.params = instance.params
+
                 if hasattr(instance, "reset"):
                     instance.reset()
                 

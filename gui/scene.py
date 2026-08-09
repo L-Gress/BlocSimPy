@@ -139,11 +139,17 @@ class NodeScene(QGraphicsScene):
 
     def complete_connection(self, start_ui, end_ui, conn_ui):
         """Complete a connection between two ports."""
+        # An input port carries exactly one signal (Simulink semantics):
+        # rewiring it drops whatever was previously connected there.
+        for old_conn in list(end_ui.connections):
+            self.delete_connection(old_conn)
+
         conn_ui.end_port = end_ui
         conn_ui.update_path()
         start_ui.connections.append(conn_ui)
         end_ui.connections.append(conn_ui)
         end_ui.model.connected_port = start_ui.model
+        conn_ui.refresh_highlight()
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""

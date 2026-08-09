@@ -73,7 +73,9 @@ class Delay(BlockModel):
         # State: A ring buffer
         self.buffer = np.zeros(1, dtype=np.float64)
         self.ptr = 0
-        self._cached_n = 1
+        # Sentinel (never a valid delay length) so _cache_params() always
+        # allocates the buffer on first call, even when DelaySteps == 1.
+        self._cached_n = -1
         self._cached_init = 0.0
         self._cache_params()
 
@@ -83,9 +85,13 @@ class Delay(BlockModel):
             self._cached_n = max(0, int(self.params.get("DelaySteps", 1)))
             self._cached_init = float(self.params.get("InitialValue", 0.0))
             
-            # Re-allocate buffer if size changed
+            # Re-allocate buffer if size changed.
+            # Buffer holds exactly n slots: reading before writing at each
+            # step means a slot is revisited after exactly n steps, giving
+            # the documented y[k] = u[k-n]. (n == 0 never indexes the
+            # buffer; see the early-return pass-through below.)
             if self._cached_n != old_n:
-                self.buffer = np.full(self._cached_n + 1, self._cached_init, dtype=np.float64)
+                self.buffer = np.full(max(self._cached_n, 1), self._cached_init, dtype=np.float64)
                 self.ptr = 0
         except:
             pass
@@ -119,8 +125,20 @@ class Delay(BlockModel):
         self.buffer[self.ptr] = self.inputs["in"].value
 
         # 3. Advance pointer
-        self.ptr = (self.ptr + 1) % (n + 1)
+        self.ptr = (self.ptr + 1) % n
 
     def get_editor_dialog(self, parent=None):
         """Return the custom configuration dialog."""
-        return DelayDialog(self.params, parent=parent)
+        dialog = DelayDialog(self.params, parent=parent)
+
+        # DelayDialog.accept() mutates self.params in place (dict item
+        # assignment), which does not fire the __setattr__ hook that
+        # refreshes _cached_n/_cached_init. Force that refresh here.
+        original_accept = dialog.accept
+
+        def accept_with_cache_refresh():
+            original_accept()
+            self._cache_params()
+
+        dialog.accept = accept_with_cache_refresh
+        return dialog

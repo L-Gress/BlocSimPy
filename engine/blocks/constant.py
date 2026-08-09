@@ -82,8 +82,9 @@ class Constant(BlockModel):
                 except ValueError:
                     self.params[key] = new_str
             
-            # Update label on manual edit
+            # Update label and refresh the cached value on manual edit
             self._update_label()
+            self._cache_params()
             original_accept()
 
         dialog.accept = accept_with_save

@@ -137,8 +137,9 @@ class SineWave(BlockModel):
                 pass
 
             self.params["Use External Time"] = "True" if cb_ext_time.isChecked() else "False"
-            
+
             self.update_io()
+            self._init_caches()
             original_accept()
 
         dialog.accept = accept_with_save

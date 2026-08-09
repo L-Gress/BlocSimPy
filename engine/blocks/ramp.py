@@ -1,4 +1,5 @@
 from ..models import BlockModel
+import numpy as np
 
 class Ramp(BlockModel):
     """Generates a signal that starts at a specific value and changes at a constant rate."""

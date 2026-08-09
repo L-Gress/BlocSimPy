@@ -153,10 +153,42 @@ class UIBlock(QGraphicsItem):
         painter.restore()
 
     def itemChange(self, change, value):
-        """Called when the item moves or rotates."""
-        if change == QGraphicsItem.ItemPositionChange or change == QGraphicsItem.ItemRotationHasChanged:
+        """Called when the item moves, rotates, or is (de)selected."""
+        # ItemPositionHasChanged (not ItemPositionChange) is used deliberately:
+        # ItemPositionChange fires *before* the new position is applied, so
+        # rerouting connections there uses the block's stale, pre-move
+        # position. That went unnoticed with the old naive router (routes
+        # look identical either way), but it breaks obstacle-avoiding
+        # routing and any non-interactive (single, large-jump) move.
+        if change == QGraphicsItem.ItemPositionHasChanged or change == QGraphicsItem.ItemRotationHasChanged:
             self._update_attached_connections()
+            self._reroute_crossing_connections()
+        elif change == QGraphicsItem.ItemSelectedHasChanged:
+            for p in self.ports_ui.values():
+                for conn in p.connections:
+                    conn.refresh_highlight()
         return super().itemChange(change, value)
+
+    def _reroute_crossing_connections(self):
+        """Wires this block isn't part of can end up passing over it once
+        it moves. Nudge any such wire back onto a clear route.
+
+        Cheap bounding-box test first: most connections in a diagram are
+        nowhere near the block that just moved, so skip the (relatively
+        expensive) full obstacle re-check for those.
+        """
+        scene = self.scene()
+        if not scene:
+            return
+
+        from .ui_connection import UIConnection  # local import: avoids a circular import
+
+        my_rect = self.mapRectToScene(QRectF(0, 0, self.width, self.height))
+        my_ports = set(self.ports_ui.values())
+        for item in scene.items():
+            if isinstance(item, UIConnection) and item.start_port not in my_ports and item.end_port not in my_ports:
+                if item.sceneBoundingRect().intersects(my_rect):
+                    item.reroute_if_blocked()
 
     def _update_attached_connections(self):
         """Update all connections attached to this block's ports."""
