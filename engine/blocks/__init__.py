@@ -34,6 +34,12 @@ from .mux import Mux
 from .demux import Demux
 from .bus_creator import BusCreator
 from .bus_selector import BusSelector
+from .dead_zone import DeadZone
+from .rate_limiter import RateLimiter
+from .quantizer import Quantizer
+from .backlash import Backlash
+from .state_space import StateSpace
+from .discrete_transfer_function import DiscreteTransferFunction
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -72,4 +78,10 @@ BLOCK_REGISTRY = {
     "Demux": Demux,
     "BusCreator": BusCreator,
     "BusSelector": BusSelector,
+    "DeadZone": DeadZone,
+    "RateLimiter": RateLimiter,
+    "Quantizer": Quantizer,
+    "Backlash": Backlash,
+    "StateSpace": StateSpace,
+    "DiscreteTransferFunction": DiscreteTransferFunction,
 }

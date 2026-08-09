@@ -5,6 +5,8 @@ import numpy as np
 from engine.blocks.integrator import Integrator
 from engine.blocks.derivative import Derivative
 from engine.blocks.transfer_function import TransferFunction
+from engine.blocks.state_space import StateSpace
+from engine.blocks.discrete_transfer_function import DiscreteTransferFunction
 from engine.blocks.pid import PID
 from engine.blocks.delay import Delay
 
@@ -195,6 +197,118 @@ class TestTransferFunction(unittest.TestCase):
 
         analytic = 1.0 - np.exp(-dt * steps)
         self.assertLess(abs(rk4_out - analytic), abs(euler_out - analytic))
+
+
+class TestStateSpace(unittest.TestCase):
+    def test_default_matches_transfer_function_default(self):
+        # Default A/B/C/D is designed to match TransferFunction's default
+        # H(s) = 1/(s+1) exactly, as a cross-validation of the state-space form.
+        ss = StateSpace()
+        tf = TransferFunction()
+        ss.inputs["in"].value = 1.0
+        tf.inputs["in"].value = 1.0
+
+        dt = 0.01
+        for i in range(200):
+            step([ss], i * dt, dt)
+            step([tf], i * dt, dt)
+
+        self.assertAlmostEqual(ss.outputs["out"].value, tf.outputs["out"].value, places=6)
+
+    def test_pure_gain_when_no_states(self):
+        ss = StateSpace()
+        set_params(ss, A=[[0.0]], B=[0.0], C=[0.0], D=3.0)
+        ss.inputs["in"].value = 2.0
+        ss.compute(0.0, 0.01)
+        self.assertAlmostEqual(ss.outputs["out"].value, 6.0)
+
+    def test_get_derivative_matches_manual_Ax_plus_Bu(self):
+        ss = StateSpace()
+        set_params(ss, A=[[-2.0]], B=[1.0], C=[1.0], D=0.0)
+        ss.inputs["in"].value = 3.0
+        ss.compute(0.0, 0.01)  # refresh matrices
+        deriv = ss.get_derivative(0.0, 0.01)
+        self.assertAlmostEqual(deriv[0], -2.0 * ss.states[0] + 1.0 * 3.0, places=6)
+
+    def test_reset_clears_state(self):
+        ss = StateSpace()
+        ss.inputs["in"].value = 1.0
+        for i in range(50):
+            step([ss], i * 0.01, 0.01)
+        self.assertNotEqual(ss.states[0], 0.0)
+        ss.reset()
+        self.assertEqual(ss.states[0], 0.0)
+
+    def test_rk4_solver_runs_state_space(self):
+        from engine.simulation.solvers import RK4Solver
+        ss = StateSpace()
+        ss.inputs["in"].value = 1.0
+        solver = RK4Solver()
+        dt = 0.05
+        for i in range(20):
+            solver.step([ss], [ss], i * dt, dt)
+        # Should be converging toward the DC gain (C*(-A^-1)*B + D = 1.0)
+        self.assertGreater(ss.outputs["out"].value, 0.0)
+        self.assertLess(ss.outputs["out"].value, 1.0)
+
+
+class TestDiscreteTransferFunction(unittest.TestCase):
+    def test_pure_gain_when_no_dynamics(self):
+        dtf = DiscreteTransferFunction()
+        set_params(dtf, Numerator=[2.0], Denominator=[1.0])
+        dtf.inputs["in"].value = 3.0
+        dtf.compute(0.0, 0.01)
+        self.assertAlmostEqual(dtf.outputs["out"].value, 6.0)
+
+    def test_matches_hand_computed_difference_equation(self):
+        # y[n] = 0.5*x[n] + 0.5*y[n-1]
+        dtf = DiscreteTransferFunction()
+        set_params(dtf, Numerator=[0.5], Denominator=[1.0, -0.5])
+
+        x_seq = [1.0, 1.0, 1.0, 1.0]
+        y_expected = []
+        y_prev = 0.0
+        for x in x_seq:
+            y = 0.5 * x + 0.5 * y_prev
+            y_expected.append(y)
+            y_prev = y
+
+        y_actual = []
+        for i, x in enumerate(x_seq):
+            dtf.inputs["in"].value = x
+            dtf.compute(i * 0.01, 0.01)
+            y_actual.append(dtf.outputs["out"].value)
+
+        for expected, actual in zip(y_expected, y_actual):
+            self.assertAlmostEqual(expected, actual, places=6)
+
+    def test_reset_clears_delay_line(self):
+        dtf = DiscreteTransferFunction()
+        set_params(dtf, Numerator=[0.5], Denominator=[1.0, -0.5])
+        dtf.inputs["in"].value = 1.0
+        for i in range(10):
+            dtf.compute(i * 0.01, 0.01)
+        self.assertTrue(any(v != 0.0 for v in dtf.w))
+        dtf.reset()
+        self.assertTrue(all(v == 0.0 for v in dtf.w))
+
+    def test_compute_chunk_matches_scalar_stepping(self):
+        import numpy as np
+        dtf_scalar = DiscreteTransferFunction()
+        set_params(dtf_scalar, Numerator=[0.5], Denominator=[1.0, -0.5])
+        dt = 0.01
+        for i in range(20):
+            dtf_scalar.inputs["in"].value = 1.0
+            dtf_scalar.compute(i * dt, dt)
+        scalar_out = dtf_scalar.outputs["out"].value
+
+        dtf_chunk = DiscreteTransferFunction()
+        set_params(dtf_chunk, Numerator=[0.5], Denominator=[1.0, -0.5])
+        dtf_chunk.inputs["in"].vector_value = np.full(20, 1.0)
+        t_vec = np.arange(20) * dt
+        dtf_chunk.compute_chunk(t_vec, dt)
+
+        self.assertAlmostEqual(dtf_chunk.outputs["out"].vector_value[-1], scalar_out, places=6)
 
 
 class TestPID(unittest.TestCase):

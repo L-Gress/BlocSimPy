@@ -1,5 +1,6 @@
 import numpy as np
 from ..models import BlockModel
+from ._poly_utils import parse_coeffs, format_fraction_label
 
 class TransferFunction(BlockModel):
     """Continuous-time Transfer Function (Laplace Domain).
@@ -42,98 +43,19 @@ class TransferFunction(BlockModel):
         # --- MODIFICATION: Update label on init ---
         self._update_label()
 
-    def _parse_coeffs(self, val):
-        if isinstance(val, (list, tuple)):
-            return [float(x) for x in val]
-        if isinstance(val, str):
-            parts = [s.strip() for s in val.split(',') if s.strip()]
-            return [float(x) for x in parts]
-        return [float(val)]
-
-    # --- MODIFICATION START: Formatting Methods ---
-    def _to_superscript(self, num):
-        """Converts integer numbers to unicode superscript (e.g., 2 -> ²)."""
-        # Map normal digits to superscript unicode chars
-        mapping = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
-        return str(num).translate(mapping)
-
-    def _format_poly(self, coeffs):
-        """Turn [1, 2, 3] into 's² + 2s + 3' using unicode."""
-        if not coeffs: return "0"
-        
-        # Remove leading zeros
-        while len(coeffs) > 1 and coeffs[0] == 0:
-            coeffs.pop(0)
-            
-        order = len(coeffs) - 1
-        terms = []
-        
-        for i, c in enumerate(coeffs):
-            power = order - i
-            if c == 0: continue
-            
-            # 1. Handle Sign
-            sign = ""
-            if c < 0: sign = "- "
-            elif i > 0: sign = "+ " 
-            
-            abs_c = abs(c)
-            
-            # 2. Handle Coefficient (hide 1.0 if part of a term like 1s)
-            str_c = f"{abs_c:g}" 
-            if abs_c == 1 and power > 0:
-                str_c = "" 
-            
-            # 3. Handle Variable s
-            str_s = ""
-            if power == 1: 
-                str_s = "s"
-            elif power > 1: 
-                str_s = f"s{self._to_superscript(power)}"
-            
-            # Edge case: Constant 1
-            if str_c == "" and str_s == "":
-                str_c = "1"
-                
-            terms.append(f"{sign}{str_c}{str_s}")
-            
-        result = "".join(terms)
-        # Clean up leading "+ " if it exists
-        if result.startswith("+ "):
-            result = result[2:]
-        return result if result else "0"
-
     def _update_label(self):
         """Updates block name to a 3-line ASCII fraction."""
         try:
-            num = self._parse_coeffs(self.params.get("Numerator", [1.0]))
-            den = self._parse_coeffs(self.params.get("Denominator", [1.0, 1.0]))
-            
-            n_str = self._format_poly(num)
-            d_str = self._format_poly(den)
-            
-            # Calculate the width of the fraction bar
-            width = max(len(n_str), len(d_str))
-            
-            # Center the strings using spaces
-            # Note: This aligns perfectly with monospaced fonts. 
-            # With proportional fonts (like Arial), it's approximate but usually readable.
-            n_pad = n_str.center(width)
-            d_pad = d_str.center(width)
-            
-            # Create the bar (using unicode box drawing char or underscores)
-            bar = "—" * width 
-            
-            # Combine into 3 lines
-            self.name = f"{n_pad}\n{bar}\n{d_pad}"
+            num = parse_coeffs(self.params.get("Numerator", [1.0]))
+            den = parse_coeffs(self.params.get("Denominator", [1.0, 1.0]))
+            self.name = format_fraction_label(num, den, variable="s")
         except:
             self.name = "TransferFunction"
-    # --- MODIFICATION END ---
 
     def _update_matrices(self):
         # ... (Existing Logic Unchanged) ...
-        num_raw = self._parse_coeffs(self.params.get("Numerator", [1.0]))
-        den_raw = self._parse_coeffs(self.params.get("Denominator", [1.0, 1.0]))
+        num_raw = parse_coeffs(self.params.get("Numerator", [1.0]))
+        den_raw = parse_coeffs(self.params.get("Denominator", [1.0, 1.0]))
 
         if not den_raw: den_raw = [1.0]
         a0 = den_raw[0]
