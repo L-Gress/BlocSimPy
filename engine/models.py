@@ -9,11 +9,19 @@ class PortModel:
         self.is_input = is_input
         self._value = 0.0
         self.connected_port: Optional['PortModel'] = None
-        
+
         # Emulation State for legacy Loop support
         self._emulation_source: Optional[np.ndarray] = None
         self._emulation_idx = 0
         self._capture_buffer: Optional[np.ndarray] = None
+
+        # Bus/vector signal state: N channels at ONE instant (e.g. Mux's
+        # output). This is intentionally a SEPARATE field from vector_value/
+        # _buffer above, which means "N time-samples of one channel" for the
+        # audio chunk path -- conflating the two would corrupt whichever
+        # path runs second.
+        self.width = 1
+        self._bus: Optional[np.ndarray] = None
 
     @property
     def value(self):
@@ -66,6 +74,32 @@ class PortModel:
         """Allocate or resize the internal buffer."""
         if not hasattr(self, '_buffer') or self._buffer.size != size:
             self._buffer = np.zeros(size)
+
+    @property
+    def bus_value(self) -> np.ndarray:
+        """Get this port's bus/vector value: an array of N channel values at
+        the current instant (e.g. what a Mux/Demux/BusCreator/BusSelector
+        pass around). Distinct from vector_value (see __init__ note).
+
+        A port that was never explicitly given a bus value (e.g. a plain
+        scalar block's output wired into a bus consumer by mistake) degrades
+        to a harmless 1-wide array wrapping its scalar .value, consistent
+        with this codebase's existing "no port type-checking, don't crash"
+        philosophy -- see PortModel class docs / models.py header.
+        """
+        if self.is_input and self.connected_port:
+            return self.connected_port.bus_value
+        if self._bus is not None:
+            return self._bus
+        return np.array([self._value], dtype=float)
+
+    @bus_value.setter
+    def bus_value(self, arr):
+        self._bus = np.asarray(arr, dtype=float)
+        self.width = self._bus.size
+        # Keep the plain scalar .value reader (Scope, or any block that
+        # doesn't know about buses) from crashing/reading garbage.
+        self._value = float(self._bus[0]) if self._bus.size else 0.0
 
 
 class RuntimeContext:

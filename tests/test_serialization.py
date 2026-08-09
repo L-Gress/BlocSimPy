@@ -9,6 +9,8 @@ import unittest
 from engine.serialization import GraphSerializer
 from engine.blocks.gain import Gain
 from engine.blocks.constant import Constant
+from engine.blocks.scope import Scope
+from engine.blocks.mux import Mux
 
 
 class TestDeserializeGraph(unittest.TestCase):
@@ -120,6 +122,49 @@ class TestDeserializeGraph(unittest.TestCase):
         # refresh_io_ports (called by deserialize_graph) should have synced ports.
         self.assertIn("In", sg.inputs)
         self.assertIn("Out", sg.outputs)
+
+    def test_scope_with_extra_inputs_restores_all_ports_on_load(self):
+        # Regression test: Scope.num_inputs used to be a plain attribute,
+        # never part of params, so a Scope saved with >1 input silently lost
+        # its extra ports (and their connections) on reload. NumInputs is
+        # now a real param, and deserialize_graph must call refresh_io_ports()
+        # unconditionally (not just when internal_blocks_data is present,
+        # which is SubGraph-specific) for this to actually restore the ports.
+        data = {
+            "blocks": [
+                {"class": "Scope", "type": "Scope", "id": 1,
+                 "position": {"x": 0, "y": 0}, "rotation": 0,
+                 "params": {"NumInputs": 5}},
+            ],
+            "connections": [],
+        }
+        blocks, _ = GraphSerializer.deserialize_graph(data)
+        scope = blocks[0]
+        self.assertIsInstance(scope, Scope)
+        self.assertEqual(sorted(scope.inputs.keys()), [f"in{i}" for i in range(1, 6)])
+        self.assertEqual(scope.num_inputs, 5)
+
+    def test_mux_with_extra_inputs_and_connections_restores_on_load(self):
+        data = {
+            "blocks": [
+                {"class": "Constant", "type": "Constant", "id": 1,
+                 "position": {"x": 0, "y": 0}, "rotation": 0,
+                 "params": {"Value": 9.0}},
+                {"class": "Mux", "type": "Mux", "id": 2,
+                 "position": {"x": 100, "y": 0}, "rotation": 0,
+                 "params": {"NumInputs": 4}},
+            ],
+            "connections": [
+                {"from_block_id": 1, "from_port": "out",
+                 "to_block_id": 2, "to_port": "in3", "points": []},
+            ],
+        }
+        blocks, connections = GraphSerializer.deserialize_graph(data)
+        mux = blocks[1]
+        self.assertIsInstance(mux, Mux)
+        self.assertEqual(sorted(mux.inputs.keys()), [f"in{i}" for i in range(1, 5)])
+        self.assertEqual(len(connections), 1)
+        self.assertEqual(connections[0]["to_port"], "in3")
 
 
 if __name__ == "__main__":

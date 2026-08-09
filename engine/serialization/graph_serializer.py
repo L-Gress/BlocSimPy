@@ -82,9 +82,17 @@ class GraphSerializer:
                 if "internal_blocks_data" in block_data:
                     new_block.internal_blocks_data = block_data["internal_blocks_data"]
                     new_block.internal_connections_data = block_data["internal_connections_data"]
-                    # CRITICAL: Sync ports immediately so UIBlock creates them
-                    if hasattr(new_block, "refresh_io_ports"):
-                        new_block.refresh_io_ports()
+
+                # Sync ports immediately so UIBlock creates them correctly.
+                # This covers SubGraph (whose ports derive from
+                # internal_blocks_data, restored just above) AND any other
+                # block with a dynamic port count driven by its own params
+                # (Scope, Mux, Demux, BusCreator, BusSelector, ...) -- it
+                # must NOT be gated on "internal_blocks_data" being present,
+                # or non-SubGraph dynamic-port blocks silently lose ports/
+                # connections beyond their default count on load.
+                if hasattr(new_block, "refresh_io_ports"):
+                    new_block.refresh_io_ports()
                 
                 # Update label if block has the method
                 if hasattr(new_block, "_update_label"):

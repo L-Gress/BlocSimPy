@@ -180,26 +180,10 @@ class ScopeDialog(QDialog):
     def _apply_config(self):
         """Apply configuration changes to the scope block."""
         new_num_inputs = self.num_inputs_spin.value()
-        current_num = self.scope_block.num_inputs
-        
-        if new_num_inputs > current_num:
-            # Add new inputs
-            for i in range(current_num + 1, new_num_inputs + 1):
-                self.scope_block.add_input(f"in{i}")
-            self.scope_block.num_inputs = new_num_inputs
-            
-        elif new_num_inputs < current_num:
-            # Remove inputs from the end
-            for i in range(new_num_inputs + 1, current_num + 1):
-                input_name = f"in{i}"
-                if input_name in self.scope_block.inputs:
-                    del self.scope_block.inputs[input_name]
-                if input_name in self.scope_block.input_data:
-                    del self.scope_block.input_data[input_name]
-            self.scope_block.num_inputs = new_num_inputs
-        
+        self.scope_block.params["NumInputs"] = new_num_inputs
+        self.scope_block.refresh_io_ports()
         self.scope_block.needs_port_refresh = True
-        
+
         # Show confirmation
         from PySide6.QtWidgets import QMessageBox
         QMessageBox.information(self, "Configuration Applied", 
@@ -228,19 +212,47 @@ class Scope(BlockModel):
     
     def __init__(self):
         super().__init__("Scope")
-        
-        # Start with one input
-        self.add_input("in1")
+
+        # NumInputs lives in params (not just the num_inputs mirror below)
+        # so it actually round-trips through GraphSerializer -- a Scope
+        # configured with >1 input used to silently lose its extra ports
+        # and their connections on save/reload, since num_inputs was never
+        # part of params.
+        self.add_param("NumInputs", 1)
         self.num_inputs = 1
-        
+        self.add_input("in1")
+
         # Data storage - using both naming conventions for compatibility
         self.time_data = []      # Required by engine (SimulationEngine)
         self.value_data = []     # Required by engine (primary input)
         self.input_data = {}     # Dict: input_name -> [values]
-        
+
         # Flag to trigger UI port refresh
         self.needs_port_refresh = False
-    
+
+    def refresh_io_ports(self):
+        """Rebuild in1..inN from params['NumInputs']. Called by
+        GraphSerializer/scene_manager after load/paste, and by the config
+        dialog on Apply -- the single source of truth for this block's
+        port count is params['NumInputs']; num_inputs is a convenience
+        mirror kept in sync here."""
+        target = max(1, min(20, int(self.params.get("NumInputs", self.num_inputs))))
+        current = self.num_inputs
+
+        if target > current:
+            for i in range(current + 1, target + 1):
+                self.add_input(f"in{i}")
+        elif target < current:
+            for i in range(target + 1, current + 1):
+                input_name = f"in{i}"
+                if input_name in self.inputs:
+                    del self.inputs[input_name]
+                if input_name in self.input_data:
+                    del self.input_data[input_name]
+
+        self.num_inputs = target
+        self.params["NumInputs"] = target
+
     def compute(self, t, dt, context=None):
         """Store data from all input ports at each time step."""
         # Store time (only once per timestep)

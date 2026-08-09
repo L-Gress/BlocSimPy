@@ -30,6 +30,10 @@ from .ramp import Ramp
 from .switch import Switch
 from .derivative import Derivative
 from .math_func import MathFunction
+from .mux import Mux
+from .demux import Demux
+from .bus_creator import BusCreator
+from .bus_selector import BusSelector
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -64,4 +68,8 @@ BLOCK_REGISTRY = {
     "Ramp": Ramp,
     "Switch": Switch,
     "Derivative": Derivative,
+    "Mux": Mux,
+    "Demux": Demux,
+    "BusCreator": BusCreator,
+    "BusSelector": BusSelector,
 }
