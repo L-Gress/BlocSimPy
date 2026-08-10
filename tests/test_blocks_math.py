@@ -120,6 +120,27 @@ class TestMathFunction(unittest.TestCase):
         mf.compute(0, 0.01)
         self.assertAlmostEqual(mf.outputs["out"].value, 0.0)
 
+    def test_sinh(self):
+        mf = MathFunction()
+        set_params(mf, Function="Sinh")
+        mf.inputs["in"].value = 0.0
+        mf.compute(0, 0.01)
+        self.assertAlmostEqual(mf.outputs["out"].value, 0.0)
+
+    def test_cosh(self):
+        mf = MathFunction()
+        set_params(mf, Function="Cosh")
+        mf.inputs["in"].value = 0.0
+        mf.compute(0, 0.01)
+        self.assertAlmostEqual(mf.outputs["out"].value, 1.0)
+
+    def test_tanh(self):
+        mf = MathFunction()
+        set_params(mf, Function="Tanh")
+        mf.inputs["in"].value = 0.0
+        mf.compute(0, 0.01)
+        self.assertAlmostEqual(mf.outputs["out"].value, 0.0)
+
     def test_unknown_function_falls_back_to_abs(self):
         mf = MathFunction()
         set_params(mf, Function="NotARealFunction")

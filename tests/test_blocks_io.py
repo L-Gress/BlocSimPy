@@ -58,6 +58,35 @@ class TestScope(unittest.TestCase):
         self.assertIsInstance(data_dict["in1"], np.ndarray)
         self.assertEqual(data_dict["in1"][0], 3.0)
 
+    def test_export_csv_rows_header_and_data(self):
+        s = Scope()
+        for i, t in enumerate([0.0, 0.1]):
+            s.inputs["in1"].value = float(i * 10)
+            s.compute(t, 0.1)
+
+        rows = s.export_csv_rows()
+        self.assertEqual(rows[0], ["time", "in1"])
+        self.assertEqual(rows[1], [0.0, 0.0])
+        self.assertEqual(rows[2], [0.1, 10.0])
+
+    def test_export_csv_rows_multiple_inputs(self):
+        s = Scope()
+        s.add_input("in2")
+        s.num_inputs = 2
+
+        s.inputs["in1"].value = 1.0
+        s.inputs["in2"].value = 2.0
+        s.compute(0.0, 0.1)
+
+        rows = s.export_csv_rows()
+        self.assertEqual(rows[0], ["time", "in1", "in2"])
+        self.assertEqual(rows[1], [0.0, 1.0, 2.0])
+
+    def test_export_csv_rows_empty_when_no_data(self):
+        s = Scope()
+        rows = s.export_csv_rows()
+        self.assertEqual(rows, [["time"]])
+
 
 class TestInputOutputPort(unittest.TestCase):
     def test_input_port_compute_is_noop_value_injected_externally(self):

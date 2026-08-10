@@ -167,5 +167,76 @@ class TestDeserializeGraph(unittest.TestCase):
         self.assertEqual(connections[0]["to_port"], "in3")
 
 
+class _FakePos:
+    """Duck-types QPointF's .x()/.y() for annotation serialization tests
+    without needing a live QApplication -- see module docstring."""
+    def __init__(self, x, y):
+        self._x, self._y = x, y
+
+    def x(self):
+        return self._x
+
+    def y(self):
+        return self._y
+
+
+class _FakeAnnotation:
+    """Duck-types UIAnnotation's .toPlainText()/.pos() for the same reason."""
+    def __init__(self, text, x, y):
+        self._text = text
+        self._pos = _FakePos(x, y)
+
+    def toPlainText(self):
+        return self._text
+
+    def pos(self):
+        return self._pos
+
+
+class TestAnnotations(unittest.TestCase):
+    def test_serialize_and_deserialize_round_trip(self):
+        fake = _FakeAnnotation("Remember to tune Kp", 120.0, 45.0)
+        data = GraphSerializer.serialize_graph([], [fake])
+        self.assertIn("annotations", data)
+
+        annotations = GraphSerializer.deserialize_annotations(data)
+        self.assertEqual(len(annotations), 1)
+        self.assertEqual(annotations[0]["text"], "Remember to tune Kp")
+        self.assertEqual(annotations[0]["x"], 120.0)
+        self.assertEqual(annotations[0]["y"], 45.0)
+
+    def test_serialize_without_annotations_omits_key(self):
+        # Backward compatibility: callers not passing annotations_ui (or
+        # passing an empty list) produce a dict with no "annotations" key,
+        # so old save files stay byte-for-byte the same shape.
+        data = GraphSerializer.serialize_graph([])
+        self.assertNotIn("annotations", data)
+
+
+class TestSimulationParams(unittest.TestCase):
+    def test_serialize_and_deserialize_round_trip(self):
+        data = GraphSerializer.serialize_graph([], sim_params={"duration": 5.0, "dt": 0.02, "solver": "rk4"})
+        self.assertIn("simulation", data)
+
+        params = GraphSerializer.deserialize_simulation_params(data)
+        self.assertEqual(params, {"duration": 5.0, "dt": 0.02, "solver": "rk4"})
+
+    def test_serialize_without_sim_params_omits_key(self):
+        # Backward compatibility: same rationale as annotations above -- old
+        # save files (and any caller not passing sim_params) stay unaffected.
+        data = GraphSerializer.serialize_graph([])
+        self.assertNotIn("simulation", data)
+
+    def test_deserialize_sim_params_defaults_to_empty_when_key_missing(self):
+        # Old save files (no "simulation" key) must load cleanly, and the
+        # caller (scene_manager) is expected to leave current toolbar values
+        # untouched when this comes back empty.
+        self.assertEqual(GraphSerializer.deserialize_simulation_params({}), {})
+
+    def test_deserialize_annotations_defaults_to_empty_when_key_missing(self):
+        # Old save files (no "annotations" key at all) must load cleanly.
+        self.assertEqual(GraphSerializer.deserialize_annotations({}), [])
+
+
 if __name__ == "__main__":
     unittest.main()
