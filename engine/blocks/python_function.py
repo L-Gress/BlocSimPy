@@ -1,6 +1,6 @@
 """Python Function block: arbitrary user Python code executed once per
-simulation timestep, reading/writing its own ports -- the per-timestep
-analogue of Simulink's MATLAB Function block.
+simulation timestep, reading/writing its own ports -- a per-timestep
+custom-code block, running each step rather than once on demand.
 
 Distinct from the existing Script Editor (gui/dialogs/script_editor.py +
 gui/managers/script_manager.py): that console runs a script ONCE, on

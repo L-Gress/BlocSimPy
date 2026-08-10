@@ -55,8 +55,8 @@ class UIPort(QGraphicsItem):
         Sibling wires typically share an initial run of waypoints (they
         all leave the same port the same way) before splitting off toward
         their own destinations; this walks that shared run and returns
-        the last point still common to every sibling, which is where a
-        Simulink-style branch dot belongs.
+        the last point still common to every sibling, which is where the
+        branch dot belongs.
         """
         sibling_paths = [c.points for c in self.connections if len(c.points) >= 2]
         if len(sibling_paths) < 2:

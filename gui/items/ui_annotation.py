@@ -1,5 +1,5 @@
 """Free-text canvas annotation -- a movable, editable note not attached to
-any block, for documenting a diagram (common in real Simulink models)."""
+any block, for documenting a diagram."""
 from PySide6.QtWidgets import QGraphicsTextItem
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont

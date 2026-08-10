@@ -9,11 +9,6 @@
   wire them together, and run continuous/discrete-time simulations.
 </p>
 
-> **Not affiliated with MathWorks.** BlocSimPy is an independent, community project inspired by
-> the general idea of block-diagram simulation tools. It is not affiliated with, endorsed by, or
-> sponsored by MathWorks, Inc. "MATLAB" and "Simulink" are trademarks of MathWorks, Inc. and are
-> used here only to describe similar concepts for readers already familiar with them.
-
 ## What it is
 
 BlocSimPy is a PySide6 (Qt) desktop application: a `QGraphicsScene`-based canvas where you place
@@ -97,7 +92,6 @@ engine/       Pure-Python simulation core: block models, solvers, execution
 gui/          PySide6 UI: canvas, block/port/connection graphics items,
               dialogs, menus, and manager classes wiring it all together.
 config/       Static UI/simulation configuration (colors, sizes, paths).
-examples/     Example diagrams (.json).
 tests/        pytest test suite.
 ```
 

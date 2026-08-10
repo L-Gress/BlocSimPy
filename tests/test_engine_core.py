@@ -116,7 +116,7 @@ class TestExecutionOrdering(unittest.TestCase):
         self.assertEqual(set(ordered), {g, ss})
 
     def test_loop_closed_through_two_subgraphs_broken_internally_does_not_raise(self):
-        # Mirrors examples/exemple1.json's real-world shape: two SubGraphs
+        # Mirrors a real-world diagram shape: two SubGraphs
         # feeding each other directly at the top level (A.out -> B.in,
         # B.out -> A.in), each internally breaking the loop with a
         # strictly-proper TransferFunction (or Integrator) rather than a

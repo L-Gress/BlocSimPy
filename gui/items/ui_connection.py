@@ -16,7 +16,7 @@ _PORT_STUB = 20.0
 
 class UIConnection(QGraphicsPathItem):
     """
-    Simulink-like Orthogonal Connection with Smart Segment Handling.
+    Orthogonal Connection with Smart Segment Handling.
     - Routes automatically with orthogonal segments.
     - Dragging a segment moves it perpendicular to its orientation.
     - Dragging a port-attached segment automatically splits the line to create a step.
@@ -87,7 +87,7 @@ class UIConnection(QGraphicsPathItem):
     def _draw_fork_dot(self, painter):
         """Mark where this wire actually splits off from its siblings (if
         any), at the real divergence point rather than always at the
-        source port -- Simulink's convention for a branched signal."""
+        source port -- the standard convention for a branched signal."""
         if not self.start_port or len(self.start_port.connections) < 2:
             return
         fork = self.start_port.fork_point()
@@ -181,7 +181,7 @@ class UIConnection(QGraphicsPathItem):
 
     def _create_initial_route(self, start_pos, end_pos):
         """Orthogonal route from start_pos to end_pos that detours around
-        any block bodies sitting in the way, Simulink-style.
+        any block bodies sitting in the way.
 
         The direct route is tried first (cheap, and correct for the
         common unobstructed case). If something's in the way, an

@@ -12,9 +12,8 @@ class DiscreteTransferFunction(BlockModel):
     H(z) = (b0 + b1*z^-1 + ... + bN*z^-N) / (a0 + a1*z^-1 + ... + aN*z^-N)
 
     The simulation's own dt is used as the (implicit) sample period -- this
-    codebase doesn't support independent per-block sample rates, so unlike
-    Simulink's Discrete Transfer Fcn, there's no separate "sample time"
-    parameter. This is a deliberate v1 scope cut.
+    codebase doesn't support independent per-block sample rates, so there's
+    no separate "sample time" parameter. This is a deliberate v1 scope cut.
 
     Like Delay, all state handling happens inside compute() itself (a pure
     discrete update, not an ODE) -- no get_derivative()/RK4 hook, and no
