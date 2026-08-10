@@ -96,7 +96,7 @@ class HelpDialog(QDialog):
         """Update the reference text with filtered blocks, grouped by category."""
         html_content = (
             "<html><body style='font-family: \"Segoe UI\", Arial, sans-serif; "
-            "background-color: #1e1e1e; color: #f5f5f7;'>"
+            "background-color: #ffffff; color: #1d1d1f;'>"
         )
         
         # 1. Organize blocks by category
@@ -136,24 +136,24 @@ class HelpDialog(QDialog):
                 continue
                 
             html_content += (
-                f"<h2 style='color: #0a84ff; border-bottom: 1px solid #3a3a3c; "
+                f"<h2 style='color: #007aff; border-bottom: 1px solid #e5e5ea; "
                 f"padding-bottom: 6px; margin-top: 30px;'>{cat_name}</h2>"
             )
 
             for block in blocks:
                 matched_total += 1
                 html_content += f"""
-                <div style='margin-bottom: 16px; padding: 12px 14px; background-color: #2c2c2e; border-left: 3px solid #0a84ff; border-radius: 0 8px 8px 0;'>
-                    <h3 style='margin: 0 0 8px 0; color: #f5f5f7;'>{block['name']}</h3>
-                    <p style='margin: 5px 0; color: #d1d1d6;'><b style='color: #f5f5f7;'>Description:</b> {block['description']}</p>
-                    <p style='margin: 5px 0; color: #d1d1d6;'><b style='color: #f5f5f7;'>Parameters:</b> {block['parameters']}</p>
-                    <p style='margin: 5px 0; color: #d1d1d6;'><b style='color: #f5f5f7;'>Formula:</b> <code style='background-color: #3a3a3c; color: #f5f5f7; padding: 2px 6px; border-radius: 4px;'>{block['formula']}</code></p>
-                    <p style='margin: 5px 0; color: #d1d1d6;'><b style='color: #f5f5f7;'>Usage:</b> <i>{block['usage']}</i></p>
+                <div style='margin-bottom: 16px; padding: 12px 14px; background-color: #f6f6f7; border-left: 3px solid #007aff; border-radius: 0 8px 8px 0;'>
+                    <h3 style='margin: 0 0 8px 0; color: #1d1d1f;'>{block['name']}</h3>
+                    <p style='margin: 5px 0; color: #3a3a3c;'><b style='color: #1d1d1f;'>Description:</b> {block['description']}</p>
+                    <p style='margin: 5px 0; color: #3a3a3c;'><b style='color: #1d1d1f;'>Parameters:</b> {block['parameters']}</p>
+                    <p style='margin: 5px 0; color: #3a3a3c;'><b style='color: #1d1d1f;'>Formula:</b> <code style='background-color: #e5e5ea; color: #1d1d1f; padding: 2px 6px; border-radius: 4px;'>{block['formula']}</code></p>
+                    <p style='margin: 5px 0; color: #3a3a3c;'><b style='color: #1d1d1f;'>Usage:</b> <i>{block['usage']}</i></p>
                 </div>
                 """
 
         if matched_total == 0:
-            html_content += "<p style='text-align: center; color: #98989d; margin-top: 50px;'>No blocks found matching your search.</p>"
+            html_content += "<p style='text-align: center; color: #6e6e73; margin-top: 50px;'>No blocks found matching your search.</p>"
         
         html_content += "</body></html>"
         self.reference_text.setHtml(html_content)

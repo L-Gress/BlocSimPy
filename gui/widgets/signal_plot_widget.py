@@ -8,19 +8,19 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 
-# Color palette for multiple signals -- kept vivid/saturated so each line
-# still reads clearly against the app's dark canvas (config/theme.py).
+# Color palette for multiple signals -- saturated system colors that still
+# read clearly against the app's light canvas (config/theme.py).
 _COLORS = [
-    '#0A84FF', '#FF9F0A', '#32D74B', '#FF453A',
-    '#BF5AF2', '#64D2FF', '#FFD60A', '#FF6482',
-    '#5E5CE6', '#66D4CF', '#AC8E68', '#98989D'
+    '#007AFF', '#FF9500', '#34C759', '#FF3B30',
+    '#AF52DE', '#32ADE6', '#FFCC00', '#FF2D55',
+    '#5856D6', '#00B4A6', '#A2845E', '#6E6E73'
 ]
 
-_PLOT_BG = "#1e1e1e"
-_AXES_BG = "#242426"
-_FG = "#f5f5f7"
+_PLOT_BG = "#ffffff"
+_AXES_BG = "#f9f9fb"
+_FG = "#1d1d1f"
 _GRID = "#8e8e93"
-_SPINE = "#48484a"
+_SPINE = "#d1d1d6"
 
 
 class SignalPlotWidget(QWidget):

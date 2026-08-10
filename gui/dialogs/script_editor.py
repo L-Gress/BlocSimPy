@@ -31,7 +31,7 @@ class ScriptEditorDialog(QDialog):
         self.output_console.setReadOnly(True)
         self.output_console.setMaximumHeight(150)
         self.output_console.setStyleSheet(
-            "background-color: #1c1c1e; color: #32d74b; font-family: Consolas;"
+            "background-color: #f6f6f7; color: #1d7a3c; font-family: Consolas;"
         )
         layout.addWidget(self.output_console)
 
