@@ -4,11 +4,12 @@ MainWindow's menu bar reuses these same QAction instances rather than
 creating its own -- one shortcut/icon/enabled-state per action, shown in two
 places (toolbar + menu) instead of two independent copies that could drift.
 """
-from PySide6.QtWidgets import QToolBar, QMessageBox, QProgressDialog, QStyle
+from PySide6.QtWidgets import QToolBar, QMessageBox, QProgressDialog
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt, QThread
 from ..dialogs import SimulationSettingsDialog, DiagramCheckDialog, DataInspectorDialog, AboutDialog
 from ..workers import SimulationWorker
+from .. import icon_factory
 from engine.simulation import SimulationEngine
 
 
@@ -29,13 +30,10 @@ class ToolbarManager:
         self._sim_worker = None
         self._progress_dialog = None
 
-    def _icon(self, standard_pixmap):
-        return self.main_window.style().standardIcon(standard_pixmap)
-
-    def _make_action(self, text, slot, shortcut=None, icon=None, parent=None):
+    def _make_action(self, text, slot, shortcut=None, icon_name=None, parent=None):
         action = QAction(text, parent or self.main_window)
-        if icon is not None:
-            action.setIcon(self._icon(icon))
+        if icon_name is not None:
+            action.setIcon(icon_factory.icon(icon_name))
         if shortcut is not None:
             action.setShortcut(shortcut)
         action.triggered.connect(slot)
@@ -43,65 +41,64 @@ class ToolbarManager:
 
     def create_toolbar(self):
         """Create every QAction, wire it up, and lay them out on the toolbar."""
-        style = QStyle
         sm = self.main_window.scene_manager
 
         # --- File ---
-        self.action_new = self._make_action("New", sm.new_graph, QKeySequence.New, style.SP_FileIcon)
-        self.action_load = self._make_action("Open...", sm.load_graph, QKeySequence.Open, style.SP_DialogOpenButton)
-        self.action_save = self._make_action("Save", sm.save_graph, QKeySequence.Save, style.SP_DialogSaveButton)
+        self.action_new = self._make_action("New", sm.new_graph, QKeySequence.New, "new")
+        self.action_load = self._make_action("Open...", sm.load_graph, QKeySequence.Open, "open")
+        self.action_save = self._make_action("Save", sm.save_graph, QKeySequence.Save, "save")
         self.action_save_as = self._make_action(
-            "Save As...", sm.save_graph_as, QKeySequence.SaveAs, style.SP_DialogSaveButton
+            "Save As...", sm.save_graph_as, QKeySequence.SaveAs, "save_as"
         )
         self.action_quit = self._make_action(
-            "Exit", self.main_window.close, QKeySequence.Quit, style.SP_DialogCloseButton
+            "Exit", self.main_window.close, QKeySequence.Quit, "quit"
         )
 
         # --- Edit ---
         self.action_undo = self._make_action(
-            "Undo", sm.undo_manager.undo, QKeySequence.Undo, style.SP_ArrowBack
+            "Undo", sm.undo_manager.undo, QKeySequence.Undo, "undo"
         )
-        self.action_redo = self._make_action("Redo", sm.undo_manager.redo, None, style.SP_ArrowForward)
+        self.action_redo = self._make_action("Redo", sm.undo_manager.redo, None, "redo")
         self.action_redo.setShortcuts([QKeySequence.Redo, QKeySequence("Ctrl+Y")])
-        self.action_cut = self._make_action("Cut", sm.cut_selection, QKeySequence.Cut)
-        self.action_copy = self._make_action("Copy", sm.copy_selection, QKeySequence.Copy)
-        self.action_paste = self._make_action("Paste", sm.paste_selection, QKeySequence.Paste)
+        self.action_cut = self._make_action("Cut", sm.cut_selection, QKeySequence.Cut, "cut")
+        self.action_copy = self._make_action("Copy", sm.copy_selection, QKeySequence.Copy, "copy")
+        self.action_paste = self._make_action("Paste", sm.paste_selection, QKeySequence.Paste, "paste")
         self.action_select_all = self._make_action(
-            "Select All", lambda: self.main_window.scene.select_all(), QKeySequence.SelectAll
+            "Select All", lambda: self.main_window.scene.select_all(), QKeySequence.SelectAll, "select_all"
         )
         self.action_delete = self._make_action(
-            "Delete", lambda: self.main_window.scene.delete_selected(), QKeySequence.Delete
+            "Delete", lambda: self.main_window.scene.delete_selected(), QKeySequence.Delete, "delete"
         )
 
         # --- Simulation ---
         self.action_sim_settings = self._make_action(
-            "Settings...", self._show_sim_settings, None, style.SP_FileDialogDetailedView
+            "Settings...", self._show_sim_settings, None, "settings"
         )
-        self.action_run = self._make_action("Run", self.run_simulation, "F5", style.SP_MediaPlay)
+        self.action_run = self._make_action("Run", self.run_simulation, "F5", "run")
         self.action_inspector = self._make_action(
-            "Data Inspector", self.show_data_inspector, None, style.SP_FileDialogContentsView
+            "Data Inspector", self.show_data_inspector, None, "inspector"
         )
 
         # --- Subsystem navigation ---
-        self.action_up = self._make_action("Go Up", sm.go_up_level, None, style.SP_ArrowUp)
+        self.action_up = self._make_action("Go Up", sm.go_up_level, None, "up")
 
         # --- Library ---
         self.action_save_subgraph = self._make_action(
-            "Save SubGraph", sm.save_selected_subgraph_to_library, None, style.SP_DirIcon
+            "Save SubGraph", sm.save_selected_subgraph_to_library, None, "subgraph"
         )
         self.action_toggle_lib = self._make_action(
             "Toggle Library", self.main_window.dock_manager.toggle_library
         )
         self.action_scripts = self._make_action(
-            "User Scripts", self.main_window.script_manager.show_editor, None, style.SP_FileDialogListView
+            "User Scripts", self.main_window.script_manager.show_editor, None, "scripts"
         )
 
         # --- Help ---
         self.action_help = self._make_action(
-            "Help", self.main_window.show_help, QKeySequence.HelpContents, style.SP_DialogHelpButton
+            "Help", self.main_window.show_help, QKeySequence.HelpContents, "help"
         )
         self.action_about = self._make_action(
-            "About BlocSimPy", self.show_about, None, style.SP_MessageBoxInformation
+            "About BlocSimPy", self.show_about, None, "about"
         )
 
         self.toolbar = QToolBar("Main Toolbar")
