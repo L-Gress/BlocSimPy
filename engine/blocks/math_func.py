@@ -61,15 +61,6 @@ class MathFunction(BlockModel):
         except:
             self.outputs["out"].value = 0.0
 
-    def compute_chunk(self, t_vec, dt, context=None):
-        # self._func is mapped to NumPy functions (np.abs, np.sin, etc)
-        # so it inherently supports vectors.
-        val = self.inputs["in"].vector_value
-        try:
-            self.outputs["out"].vector_value = self._func(val)
-        except:
-            self.outputs["out"].vector_value.fill(0.0)
-
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QComboBox, QDialogButtonBox
         dialog = QDialog(parent)

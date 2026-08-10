@@ -16,8 +16,8 @@ def connect(dst_block, dst_port, src_block, src_port="out"):
 def set_params(block, **kwargs):
     """Set params and retrigger any per-block param-cache refresh hooks.
 
-    Several blocks (Gain, Constant, Delay, SineWave, Integrator, AudioInput/
-    Output, ...) parse/cache their params for performance, refreshed only
+    Several blocks (Gain, Constant, Delay, SineWave, Integrator, ...) parse/
+    cache their params for performance, refreshed only
     when the whole `params` dict object is reassigned (see each block's
     __setattr__). Mutating block.params[key] in place silently skips that
     refresh. This mirrors what GraphSerializer and the blocks' own editor

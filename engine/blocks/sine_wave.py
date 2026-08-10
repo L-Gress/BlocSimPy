@@ -75,19 +75,6 @@ class SineWave(BlockModel):
 
         self.outputs["out"].value = amp * np.sin(self._two_pi * freq * time_val + phase)
 
-    def compute_chunk(self, t_vec, dt, context=None):
-        # Determine time source vector
-        if self.params.get("Use External Time", "False") == "True" and "time" in self.inputs:
-            time_src = self.inputs["time"].vector_value
-        else:
-            time_src = t_vec
-            
-        # Parallel generation of the wave chunk
-        self.outputs["out"].vector_value = self._cached_amp * np.sin(
-            self._two_pi * self._cached_freq * time_src + self._cached_phase
-        )
-
-
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QCheckBox, QDialogButtonBox
 

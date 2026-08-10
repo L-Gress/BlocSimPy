@@ -16,15 +16,11 @@ from .divide import Divide
 from .input_port import InputPort
 from .output_port import OutputPort
 from .subgraph import SubGraph
-from .audio_input import AudioInput
-from .audio_output import AudioOutput
 from .delay import Delay
 from .abs import Abs
 from .max import Max
 from .min import Min
 from .modulo import Modulo
-from .audio_record import AudioRecord
-from .audio_read import AudioRead
 from .saturation import Saturation
 from .ramp import Ramp
 from .switch import Switch
@@ -56,21 +52,17 @@ BLOCK_REGISTRY = {
     "Product": Product,
     "Divide": Divide,
     "Modulo": Modulo,
-    "AudioRecord": AudioRecord,
     "LogicalOperator": LogicalOperator,
     "RelationalOperator": RelationalOperator,
     "IfElse": IfElse,
     "SubGraph": SubGraph,
     "InputPort": InputPort,
     "OutputPort": OutputPort,
-    "AudioInput": AudioInput,
-    "AudioOutput": AudioOutput,
     "Delay": Delay,
     "Abs": Abs,
     "MathFunction": MathFunction,
     "Max": Max,
     "Min": Min,
-    "AudioRead": AudioRead,
     "Saturation": Saturation,
     "Ramp": Ramp,
     "Switch": Switch,

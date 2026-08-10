@@ -1,5 +1,4 @@
 from ..models import BlockModel
-import numpy as np
 
 class Quantizer(BlockModel):
     """Rounds the input to the nearest multiple of Interval (a stairstep)."""
@@ -39,10 +38,6 @@ class Quantizer(BlockModel):
         val = float(self.inputs["in"].value)
         out = round(val / self._interval) * self._interval
         self.outputs["out"].value = out
-
-    def compute_chunk(self, t_vec, dt, context=None):
-        val = self.inputs["in"].vector_value
-        self.outputs["out"].vector_value = np.round(val / self._interval) * self._interval
 
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox

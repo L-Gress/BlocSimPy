@@ -1,6 +1,5 @@
-"""Tests for SubGraph's synchronous 'Standard' execution mode: I/O bridging and
-variable substitution ($VarName). Threaded/Audio async modes are covered in
-test_threaded_subgraph.py.
+"""Tests for SubGraph's synchronous execution: I/O bridging and variable
+substitution ($VarName).
 """
 import unittest
 
@@ -10,7 +9,6 @@ from engine.blocks.subgraph import SubGraph
 class TestSubGraphStandardMode(unittest.TestCase):
     def _build_gain_subgraph(self, gain_value=2.0):
         sg = SubGraph()
-        sg.params["Execution Mode"] = "Standard"
 
         sg.internal_blocks_data = [
             {"id": "in1", "type": "InputPort", "params": {"PortName": "In"}},

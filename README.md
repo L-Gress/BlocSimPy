@@ -18,15 +18,13 @@ no GUI dependency, so it can also be driven headlessly/programmatically or teste
 
 ## Features
 
-- 43 block types across Math, Signal (dynamics), Discontinuities, Signal Routing, Logic,
-  Sources, Sinks, I/O, and Structure — see the full list below.
+- 39 block types across Math, Signal (dynamics), Discontinuities, Signal Routing, Logic,
+  Sources, Sinks, and Structure — see the full list below.
 - Two solvers: fixed-step forward Euler and classic 4th-order Runge-Kutta.
 - Algebraic-loop detection: a real `AlgebraicLoopError` naming the blocks involved.
-- Subsystems (SubGraph): group a diagram into a reusable block with its own named ports, a
-  custom icon, and either synchronous ("Standard") or independently-clocked
-  ("Threaded"/"Audio") execution.
+- Subsystems (SubGraph): group a diagram into a reusable block with its own named ports and a
+  custom icon.
 - Vector/bus signals: `Mux`/`Demux` and named `BusCreator`/`BusSelector` blocks.
-- Live audio I/O: `AudioInput`/`AudioOutput`/`AudioRecord`/`AudioRead` blocks via `sounddevice`.
 - A Python Function block: arbitrary per-timestep Python code with persistent state.
 - "Update Diagram" pre-flight check, a Data Inspector, CSV export, canvas annotations, undo/redo,
   and a searchable block palette.
@@ -42,7 +40,6 @@ no GUI dependency, so it can also be driven headlessly/programmatically or teste
 | Logic | IfElse, LogicalOperator, RelationalOperator |
 | Sources | Clock, Constant, Ramp, SineWave |
 | Sinks | Scope |
-| I/O (audio) | AudioInput, AudioOutput, AudioRead, AudioRecord |
 | Structure | InputPort, OutputPort, PythonFunction, SubGraph |
 
 ## Installation
@@ -82,7 +79,7 @@ engine/       Pure-Python simulation core: block models, solvers, execution
               ordering, serialization -- no Qt dependency.
   blocks/     One file per block "kind", registered in engine/blocks/__init__.py.
   simulation/ SimulationEngine, solvers (Euler/RK4), topological sort +
-              algebraic-loop detection, realtime audio/timer processors.
+              algebraic-loop detection.
 gui/          PySide6 UI: canvas, block/port/connection graphics items,
               dialogs, menus, and manager classes wiring it all together.
 config/       Static UI/simulation configuration (colors, sizes, paths).

@@ -1,5 +1,4 @@
 from ..models import BlockModel
-import numpy as np
 
 class DeadZone(BlockModel):
     """Outputs zero for inputs within [Lower Limit, Upper Limit]; outside
@@ -47,12 +46,6 @@ class DeadZone(BlockModel):
         else:
             out = 0.0
         self.outputs["out"].value = out
-
-    def compute_chunk(self, t_vec, dt, context=None):
-        val = self.inputs["in"].vector_value
-        out = np.where(val > self._upper, val - self._upper,
-                        np.where(val < self._lower, val - self._lower, 0.0))
-        self.outputs["out"].vector_value = out
 
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox

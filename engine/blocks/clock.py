@@ -29,10 +29,6 @@ class Clock(BlockModel):
         # Simply pass the current time to the output
         self.outputs["out"].value = float(t)
 
-    def compute_chunk(self, t_vec, dt, context=None):
-        # Vectorized time output
-        self.outputs["out"].vector_value = t_vec
-
     def get_editor_dialog(self, parent=None):
         """
         Simple information dialog since there are no parameters.

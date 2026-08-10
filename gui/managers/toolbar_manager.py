@@ -1,8 +1,5 @@
 """Manages toolbar creation and toolbar actions."""
-from PySide6.QtWidgets import (
-    QToolBar, QMessageBox, QDialog, QVBoxLayout, QLabel, QPushButton
-)
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QToolBar, QMessageBox
 from PySide6.QtGui import QAction
 from ..dialogs import SimulationSettingsDialog, DiagramCheckDialog, DataInspectorDialog
 from engine.simulation import SimulationEngine
@@ -101,12 +98,7 @@ class ToolbarManager:
                 self.sim_solver = dialog.get_solver()
     
     def run_simulation(self):
-        """Run the simulation locally.
-
-        Graphs containing Audio I/O blocks run live against the sound
-        hardware (hardware-clocked, until stopped); all other graphs run
-        as a fixed-duration batch simulation.
-        """
+        """Run the simulation locally as a fixed-duration batch run."""
         if not self.main_window.scene_manager.blocks_ui:
             QMessageBox.warning(self.main_window, "No Blocks", "Add blocks to the scene first.")
             return
@@ -124,11 +116,6 @@ class ToolbarManager:
             check_dialog = DiagramCheckDialog(issues, self.main_window)
             if not check_dialog.exec():
                 return
-
-        has_audio_io = any(b.__class__.__name__ in ["AudioInput", "AudioOutput"] for b in block_models)
-        if has_audio_io:
-            self._run_audio_realtime(block_models)
-            return
 
         # Create simulation engine
         engine = SimulationEngine()
@@ -165,60 +152,7 @@ class ToolbarManager:
         if self.last_result is None or not self.last_result.scope_data:
             QMessageBox.information(
                 self.main_window, "No Data",
-                "Run a (non-audio) simulation first to have data to inspect."
+                "Run a simulation first to have data to inspect."
             )
             return
         DataInspectorDialog(self.last_result, self.main_window).exec()
-
-    def _run_audio_realtime(self, block_models):
-        """Stream an audio-driven graph against the sound hardware until the user stops it."""
-        import sounddevice as sd
-        from engine.simulation.processors import AudioProcessor
-
-        for block in block_models:
-            if hasattr(block, "reset"):
-                block.reset()
-
-        sample_rate = 44100
-        buffer_size = 1024
-
-        # Device selection: honor per-block "Device" params if the user picked one.
-        in_device = None
-        out_device = None
-        for block in block_models:
-            dev = block.params.get("Device")
-            if not dev or dev == "default":
-                continue
-            try:
-                val = int(dev)
-            except (TypeError, ValueError):
-                val = dev
-            if block.__class__.__name__ == "AudioInput":
-                in_device = val
-            elif block.__class__.__name__ == "AudioOutput":
-                out_device = val
-
-        processor = AudioProcessor(block_models, sample_rate)
-
-        try:
-            stream = sd.Stream(channels=2, samplerate=sample_rate, blocksize=buffer_size,
-                                callback=processor.callback, device=(in_device, out_device),
-                                latency='low')
-            stream.start()
-        except Exception as e:
-            QMessageBox.critical(self.main_window, "Audio Error", f"Could not start audio stream: {e}")
-            return
-
-        dialog = QDialog(self.main_window)
-        dialog.setWindowTitle("Running (Audio)")
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("Audio simulation is running live.\nClose this window to stop."))
-        btn_stop = QPushButton("⏹ Stop")
-        btn_stop.clicked.connect(dialog.accept)
-        layout.addWidget(btn_stop)
-
-        try:
-            dialog.exec()
-        finally:
-            stream.stop()
-            stream.close()

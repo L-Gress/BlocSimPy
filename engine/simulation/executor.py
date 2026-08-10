@@ -48,8 +48,8 @@ class ExecutionOrdering:
         per-input one that ignores whether the coupled output matters)
         caused real false positives on exactly that diagram shape.
 
-        Pure sinks (blocks with NO output ports at all, e.g. Scope,
-        AudioOutput) can never legitimately be PART of a cycle -- nothing
+        Pure sinks (blocks with NO output ports at all, e.g. Scope) can
+        never legitimately be PART of a cycle -- nothing
         can ever depend on a sink's output, since it doesn't have one. So:
         first try ordering with sink consumption counted normally (so an
         ordinary source -> ... -> Scope chain still gets sources-first
@@ -81,9 +81,9 @@ class ExecutionOrdering:
         adjacency: Dict[BlockModel, List[BlockModel]] = {block: [] for block in non_sinks}
 
         # Which of each non-sink block's OWN output ports are actually read
-        # elsewhere in this diagram. Whether sink (Scope/AudioOutput/...)
-        # consumers count is the one thing that differs between the two
-        # passes described above.
+        # elsewhere in this diagram. Whether sink (e.g. Scope) consumers
+        # count is the one thing that differs between the two passes
+        # described above.
         consumed_outputs: Dict[BlockModel, set] = {block: set() for block in non_sinks}
         reader_blocks = blocks if count_sink_consumers else non_sinks
         for block in reader_blocks:

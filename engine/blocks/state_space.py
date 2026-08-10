@@ -126,31 +126,6 @@ class StateSpace(BlockModel):
     def set_state(self, vec):
         self.states = [float(v) for v in vec]
 
-    def compute_chunk(self, t_vec, dt, context=None):
-        # Custom, mirroring TransferFunction's compute_chunk: state must
-        # advance sample-by-sample WITHIN this pass for the audio/realtime
-        # path to be correct (sequential dynamics). update_state_chunk()
-        # below is a no-op so the default shim doesn't integrate twice.
-        if dt <= 0:
-            return
-        self._refresh_matrices_if_needed()
-
-        u_vec = self.inputs["in"].vector_value if "in" in self.inputs else np.zeros(len(t_vec))
-        out = np.zeros(len(t_vec))
-        x = np.array(self.states, dtype=float)
-
-        for i in range(len(t_vec)):
-            u = float(u_vec[i])
-            out[i] = float(np.dot(self._C, x) + self._D * u)
-            deriv = self._A @ x + self._B * u
-            x = x + deriv * dt
-
-        self.states = list(x)
-        self.outputs["out"].vector_value = out
-
-    def update_state_chunk(self, t_vec, dt, context=None):
-        pass
-
     def reset(self):
         self.states = [0.0] * len(self.states)
 

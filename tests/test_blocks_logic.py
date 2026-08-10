@@ -1,6 +1,5 @@
 """Unit tests for conditional/logic blocks: IfElse, LogicalOperator, RelationalOperator, Switch."""
 import unittest
-import numpy as np
 
 from engine.blocks.if_else import IfElse
 from engine.blocks.logical_operator import LogicalOperator
@@ -70,17 +69,6 @@ class TestLogicalOperator(unittest.TestCase):
         self.assertEqual(self._run("NOR", 0.0, 0.0), 1.0)
         self.assertEqual(self._run("NOR", 1.0, 0.0), 0.0)
 
-    def test_compute_chunk_matches_scalar(self):
-        block = LogicalOperator()
-        block.params["Operator"] = "AND"
-        a = np.array([1.0, 1.0, 0.0, 0.0])
-        b = np.array([1.0, 0.0, 1.0, 0.0])
-        block.inputs["in1"].vector_value = a
-        block.inputs["in2"].vector_value = b
-        block.compute_chunk(np.arange(4) * 0.01, 0.01)
-        np.testing.assert_allclose(block.outputs["out"].vector_value, [1.0, 0.0, 0.0, 0.0])
-
-
 class TestRelationalOperator(unittest.TestCase):
     def _run(self, op, a, b):
         block = RelationalOperator()
@@ -107,17 +95,6 @@ class TestRelationalOperator(unittest.TestCase):
     def test_ge_le(self):
         self.assertEqual(self._run(">=", 4.0, 4.0), 1.0)
         self.assertEqual(self._run("<=", 4.0, 4.0), 1.0)
-
-    def test_compute_chunk_matches_scalar(self):
-        block = RelationalOperator()
-        block.params["Operator"] = ">"
-        a = np.array([5.0, 1.0, 3.0])
-        b = np.array([3.0, 1.0, 5.0])
-        block.inputs["in1"].vector_value = a
-        block.inputs["in2"].vector_value = b
-        block.compute_chunk(np.arange(3) * 0.01, 0.01)
-        np.testing.assert_allclose(block.outputs["out"].vector_value, [1.0, 0.0, 0.0])
-
 
 class TestSwitch(unittest.TestCase):
     def test_passes_in1_when_ctrl_above_threshold(self):

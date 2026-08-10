@@ -1,5 +1,4 @@
 from ..models import BlockModel
-import numpy as np
 
 class Divide(BlockModel):
     """
@@ -34,21 +33,6 @@ class Divide(BlockModel):
             self.outputs["out"].value = v1 / v2
         else:
             self.outputs["out"].value = 0.0  # or some defined behavior for division by zero
-
-    def compute_chunk(self, t_vec, dt, context=None):
-        v1 = self.inputs["num"].vector_value
-        v2 = self.inputs["den"].vector_value
-        
-        # NumPy handles division by zero (inf/nan), but we might want 0.0 for consistency?
-        # For performance, raw division is best if inputs are well-behaved.
-        # If we rigorously want 0.0 on div-by-zero:
-        
-        with np.errstate(divide='ignore', invalid='ignore'):
-            res = v1 / v2
-            # Replace Inf/NaN with 0.0
-            res[~np.isfinite(res)] = 0.0
-            
-        self.outputs["out"].vector_value = res
 
     def get_editor_dialog(self, parent=None):
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QDialogButtonBox

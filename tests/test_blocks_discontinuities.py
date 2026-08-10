@@ -1,6 +1,5 @@
 """Unit tests for discontinuity blocks: Dead Zone, Rate Limiter, Quantizer, Backlash."""
 import unittest
-import numpy as np
 
 from engine.blocks.dead_zone import DeadZone
 from engine.blocks.rate_limiter import RateLimiter
@@ -30,21 +29,6 @@ class TestDeadZone(unittest.TestCase):
         dz.inputs["in"].value = -2.0
         dz.compute(0.0, 0.01)
         self.assertAlmostEqual(dz.outputs["out"].value, -1.5)
-
-    def test_compute_chunk_matches_scalar(self):
-        dz = DeadZone()
-        vals = np.array([-2.0, -0.1, 0.0, 0.3, 2.0])
-        expected = []
-        for v in vals:
-            dz.inputs["in"].value = float(v)
-            dz.compute(0.0, 0.01)
-            expected.append(dz.outputs["out"].value)
-
-        dz2 = DeadZone()
-        dz2.inputs["in"].vector_value = vals
-        dz2.compute_chunk(np.arange(len(vals)) * 0.01, 0.01)
-        np.testing.assert_allclose(dz2.outputs["out"].vector_value, expected)
-
 
 class TestRateLimiter(unittest.TestCase):
     def test_first_sample_passes_through_unlimited(self):
@@ -106,23 +90,6 @@ class TestQuantizer(unittest.TestCase):
         q.inputs["in"].value = 2.6
         q.compute(0.0, 0.01)
         self.assertAlmostEqual(q.outputs["out"].value, 3.0)
-
-    def test_compute_chunk_matches_scalar(self):
-        q = Quantizer()
-        set_params(q, Interval=0.25)
-        vals = np.array([0.1, 0.4, 0.9, -0.3])
-        expected = []
-        for v in vals:
-            q.inputs["in"].value = float(v)
-            q.compute(0.0, 0.01)
-            expected.append(q.outputs["out"].value)
-
-        q2 = Quantizer()
-        set_params(q2, Interval=0.25)
-        q2.inputs["in"].vector_value = vals
-        q2.compute_chunk(np.arange(len(vals)) * 0.01, 0.01)
-        np.testing.assert_allclose(q2.outputs["out"].vector_value, expected)
-
 
 class TestBacklash(unittest.TestCase):
     def test_first_sample_passes_through(self):

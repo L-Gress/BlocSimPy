@@ -71,49 +71,6 @@ class PID(BlockModel):
         # Update for next step
         self.prev_error = error
 
-    def compute_chunk(self, t_vec, dt, context=None):
-        import numpy as np
-        
-        # 1. Parse params locally (or cache them for perf)
-        kp = float(self.params.get("Kp", 1.0))
-        ki = float(self.params.get("Ki", 0.0))
-        kd = float(self.params.get("Kd", 0.0))
-        
-        # 2. Get Input Vector (Error Signal)
-        error_vec = self.inputs["in"].vector_value
-        
-        # 3. Proportional Term (Vectorized)
-        p_term = kp * error_vec
-        
-        # 4. Integral Term (Cumulative Sum)
-        # We need to carry over the integral state from the last chunk.
-        # cumsum gives the running sum WITHIN this chunk.
-        # We add the previous accumulated integral to all elements.
-        step_integrals = np.cumsum(error_vec) * dt
-        i_term = ki * (self.integral + step_integrals)
-        
-        # Update state for next chunk
-        self.integral += step_integrals[-1]
-        
-        # 5. Derivative Term (Finite Difference)
-        # We need the last sample of the previous chunk to compute the diff for the first sample of this chunk.
-        # We can prepend prev_error to error_vec
-        extended_error = np.hstack(([self.prev_error], error_vec))
-        diffs = np.diff(extended_error)
-        
-        if dt > 0:
-            derivative = diffs / dt
-        else:
-            derivative = np.zeros_like(error_vec)
-            
-        d_term = kd * derivative
-        
-        # Update state for next chunk
-        self.prev_error = error_vec[-1]
-        
-        # 6. Total Output
-        self.outputs["out"].vector_value = p_term + i_term + d_term
-
     def reset(self):
         """Reset internal states."""
         self.integral = 0.0

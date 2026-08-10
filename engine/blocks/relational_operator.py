@@ -57,31 +57,6 @@ class RelationalOperator(BlockModel):
         # 3. Output 1.0 or 0.0
         self.outputs["out"].value = 1.0 if result else 0.0
 
-    def compute_chunk(self, t_vec, dt, context=None):
-        val_a = self.inputs["in1"].vector_value
-        val_b = self.inputs["in2"].vector_value
-        
-        op = self.params.get("Operator", ">")
-        result = None
-        
-        if op == ">":
-            result = val_a > val_b
-        elif op == "<":
-            result = val_a < val_b
-        elif op == ">=":
-            result = val_a >= val_b
-        elif op == "<=":
-            result = val_a <= val_b
-        elif op == "==":
-            result = val_a == val_b
-        elif op == "!=":
-            result = val_a != val_b
-            
-        if result is not None:
-             self.outputs["out"].vector_value = result.astype(float)
-        else:
-             self.outputs["out"].vector_value.fill(0.0)
-
     # --- Safety hooks for loading files ---
     def __setattr__(self, name, value):
         super().__setattr__(name, value)

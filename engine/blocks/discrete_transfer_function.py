@@ -16,9 +16,7 @@ class DiscreteTransferFunction(BlockModel):
     no separate "sample time" parameter. This is a deliberate v1 scope cut.
 
     Like Delay, all state handling happens inside compute() itself (a pure
-    discrete update, not an ODE) -- no get_derivative()/RK4 hook, and no
-    custom compute_chunk() override is needed since the default per-sample
-    emulation shim already interleaves state correctly.
+    discrete update, not an ODE) -- no get_derivative()/RK4 hook needed.
     """
 
     BLOCK_INFO = {

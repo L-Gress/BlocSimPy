@@ -5,9 +5,7 @@ class RateLimiter(BlockModel):
 
     Like Delay, this is a discrete state update done entirely inside
     compute() (state = previous output), not an ODE -- there's no
-    get_derivative()/RK4 hook, and no custom compute_chunk() override is
-    needed since the default per-sample emulation shim already interleaves
-    state correctly for a block that does everything in one compute() call.
+    get_derivative()/RK4 hook needed.
     """
 
     BLOCK_INFO = {

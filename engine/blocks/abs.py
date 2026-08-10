@@ -25,10 +25,6 @@ class Abs(BlockModel):
         inp = self.inputs["in"].value
         self.outputs["out"].value = np.abs(inp)
 
-    def compute_chunk(self, t_vec, dt, context=None):
-        inp = self.inputs["in"].vector_value
-        self.outputs["out"].vector_value = np.abs(inp)
-
     def get_editor_dialog(self, parent=None):
         # No parameters to edit, so we return None or show a simple info message
         return None

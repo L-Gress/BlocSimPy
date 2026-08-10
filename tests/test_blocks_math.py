@@ -1,6 +1,5 @@
 """Unit tests for stateless math/arithmetic blocks."""
 import unittest
-import numpy as np
 
 from engine.blocks.gain import Gain
 from engine.blocks.sum_block import Sum
@@ -23,14 +22,6 @@ class TestGain(unittest.TestCase):
         g.inputs["in"].value = 4.0
         g.compute(0, 0.01)
         self.assertAlmostEqual(g.outputs["out"].value, 10.0)
-
-    def test_compute_chunk_matches_scalar(self):
-        g = Gain()
-        set_params(g, Gain=3.0)
-        u = np.array([1.0, 2.0, 3.0])
-        g.inputs["in"].vector_value = u
-        g.compute_chunk(np.arange(3) * 0.01, 0.01)
-        np.testing.assert_allclose(g.outputs["out"].vector_value, u * 3.0)
 
     def test_invalid_gain_param_falls_back_to_zero(self):
         g = Gain()
@@ -72,13 +63,6 @@ class TestDivide(unittest.TestCase):
         d.inputs["den"].value = 0.0
         d.compute(0, 0.01)
         self.assertEqual(d.outputs["out"].value, 0.0)
-
-    def test_compute_chunk_division_by_zero_yields_zero(self):
-        d = Divide()
-        d.inputs["num"].vector_value = np.array([1.0, 2.0, 3.0])
-        d.inputs["den"].vector_value = np.array([1.0, 0.0, 2.0])
-        d.compute_chunk(np.arange(3) * 0.01, 0.01)
-        np.testing.assert_allclose(d.outputs["out"].vector_value, [1.0, 0.0, 1.5])
 
 
 class TestModulo(unittest.TestCase):
@@ -148,14 +132,6 @@ class TestMathFunction(unittest.TestCase):
         mf.compute(0, 0.01)
         self.assertAlmostEqual(mf.outputs["out"].value, 4.0)
 
-    def test_compute_chunk_matches_scalar(self):
-        mf = MathFunction()
-        set_params(mf, Function="Square")
-        u = np.array([1.0, 2.0, 3.0])
-        mf.inputs["in"].vector_value = u
-        mf.compute_chunk(np.arange(3) * 0.01, 0.01)
-        np.testing.assert_allclose(mf.outputs["out"].vector_value, u ** 2)
-
 
 class TestMaxMin(unittest.TestCase):
     def test_max_scalar(self):
@@ -171,20 +147,6 @@ class TestMaxMin(unittest.TestCase):
         m.inputs["in2"].value = 7.0
         m.compute(0, 0.01)
         self.assertEqual(m.outputs["out"].value, 3.0)
-
-    def test_max_compute_chunk(self):
-        m = Max()
-        m.inputs["in1"].vector_value = np.array([1.0, 5.0, 2.0])
-        m.inputs["in2"].vector_value = np.array([3.0, 1.0, 6.0])
-        m.compute_chunk(np.arange(3) * 0.01, 0.01)
-        np.testing.assert_allclose(m.outputs["out"].vector_value, [3.0, 5.0, 6.0])
-
-    def test_min_compute_chunk(self):
-        m = Min()
-        m.inputs["in1"].vector_value = np.array([1.0, 5.0, 2.0])
-        m.inputs["in2"].vector_value = np.array([3.0, 1.0, 6.0])
-        m.compute_chunk(np.arange(3) * 0.01, 0.01)
-        np.testing.assert_allclose(m.outputs["out"].vector_value, [1.0, 1.0, 2.0])
 
 
 class TestSaturation(unittest.TestCase):
@@ -209,14 +171,6 @@ class TestSaturation(unittest.TestCase):
         s.inputs["in"].value = 0.3
         s.compute(0, 0.01)
         self.assertAlmostEqual(s.outputs["out"].value, 0.3)
-
-    def test_compute_chunk_clips(self):
-        s = Saturation()
-        s.params["Upper Limit"] = 1.0
-        s.params["Lower Limit"] = -1.0
-        s.inputs["in"].vector_value = np.array([-5.0, 0.5, 5.0])
-        s.compute_chunk(np.arange(3) * 0.01, 0.01)
-        np.testing.assert_allclose(s.outputs["out"].vector_value, [-1.0, 0.5, 1.0])
 
 
 class TestBlockChaining(unittest.TestCase):

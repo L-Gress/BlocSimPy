@@ -6,8 +6,7 @@ class Backlash(BlockModel):
     deadband width.
 
     Like Delay/RateLimiter, this is a discrete state update done entirely
-    inside compute() (state = current output position); no ODE/RK4 hook,
-    no custom compute_chunk() needed (default per-sample shim suffices).
+    inside compute() (state = current output position); no ODE/RK4 hook needed.
     """
 
     BLOCK_INFO = {

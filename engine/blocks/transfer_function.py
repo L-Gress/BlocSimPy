@@ -159,41 +159,6 @@ class TransferFunction(BlockModel):
     def set_state(self, vec):
         self.states = [float(v) for v in vec]
 
-    def compute_chunk(self, t_vec, dt, context=None):
-        # Custom (not the default per-sample compute()-only shim): state
-        # must advance sample-by-sample WITHIN this pass for the audio/
-        # realtime path to be correct, since this block's dynamics are
-        # sequential (each sample's output depends on the previous sample's
-        # integrated state). update_state_chunk() below is a no-op so the
-        # default chunk shim doesn't try to integrate a second time.
-        if dt <= 0:
-            return
-        self._refresh_matrices_if_needed()
-
-        u_vec = self.inputs["in"].vector_value if "in" in self.inputs else np.zeros(len(t_vec))
-        n = len(self.states)
-        out = np.zeros(len(t_vec))
-
-        if n == 0:
-            out[:] = self._D * u_vec
-        else:
-            for i in range(len(t_vec)):
-                u = float(u_vec[i])
-                y = self._D * u
-                for j in range(n):
-                    y += self._C[j] * self.states[n - 1 - j]
-                out[i] = y
-
-                derivatives = self._derivatives_for(u, self.states)
-                for j in range(n):
-                    self.states[j] += derivatives[j] * dt
-
-        self.outputs["out"].vector_value = out
-
-    def update_state_chunk(self, t_vec, dt, context=None):
-        # State was already advanced inline inside compute_chunk() above.
-        pass
-
     def reset(self):
         self.states = [0.0] * len(self.states)
 

@@ -1,6 +1,5 @@
 """Unit tests for signal source blocks: Constant, SineWave, Ramp, Clock, LookupTable."""
 import unittest
-import numpy as np
 
 from engine.blocks.constant import Constant
 from engine.blocks.sine_wave import SineWave
@@ -24,13 +23,6 @@ class TestConstant(unittest.TestCase):
         for t in [0.0, 1.0, 5.0]:
             c.compute(t, 0.01)
             self.assertEqual(c.outputs["out"].value, 7.0)
-
-    def test_compute_chunk_fills_buffer(self):
-        c = Constant()
-        set_params(c, Value=3.0)
-        c.outputs["out"].ensure_buffer(5)
-        c.compute_chunk(np.arange(5) * 0.01, 0.01)
-        np.testing.assert_allclose(c.outputs["out"].vector_value, np.full(5, 3.0))
 
 
 class TestSineWave(unittest.TestCase):
@@ -77,25 +69,12 @@ class TestRamp(unittest.TestCase):
         r.compute(2.0, 0.01)  # 1 second past start
         self.assertAlmostEqual(r.outputs["out"].value, 2.0)
 
-    def test_compute_chunk_matches_scalar(self):
-        r = Ramp()
-        set_params(r, Slope=3.0, **{"Start Time": 0.0, "Initial Output": 1.0})
-        t_vec = np.array([0.0, 1.0, 2.0])
-        r.compute_chunk(t_vec, 0.01)
-        np.testing.assert_allclose(r.outputs["out"].vector_value, [1.0, 4.0, 7.0])
-
 
 class TestClock(unittest.TestCase):
     def test_outputs_current_time(self):
         c = Clock()
         c.compute(3.14, 0.01)
         self.assertAlmostEqual(c.outputs["out"].value, 3.14)
-
-    def test_compute_chunk_outputs_time_vector(self):
-        c = Clock()
-        t_vec = np.array([0.0, 0.1, 0.2])
-        c.compute_chunk(t_vec, 0.01)
-        np.testing.assert_allclose(c.outputs["out"].vector_value, t_vec)
 
 
 class TestLookupTable(unittest.TestCase):
@@ -119,13 +98,6 @@ class TestLookupTable(unittest.TestCase):
         lut.inputs["in"].value = 1.0
         lut.compute(0, 0.01)
         self.assertEqual(lut.outputs["out"].value, 0.0)
-
-    def test_compute_chunk_matches_scalar(self):
-        lut = LookupTable()
-        lut.params["Table"] = [(0.0, 0.0), (1.0, 10.0), (2.0, 20.0)]
-        lut.inputs["in"].vector_value = np.array([0.5, 1.5])
-        lut.compute_chunk(np.arange(2) * 0.01, 0.01)
-        np.testing.assert_allclose(lut.outputs["out"].vector_value, [5.0, 15.0])
 
 
 if __name__ == "__main__":

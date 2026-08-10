@@ -41,25 +41,6 @@ class TestIntegrator(unittest.TestCase):
         integ.compute(0.0, 0.1)
         self.assertEqual(integ.state, 1.0)
 
-    def test_compute_chunk_matches_scalar_stepping(self):
-        # Scalar path
-        integ_scalar = Integrator()
-        integ_scalar.inputs["in"].value = 3.0
-        for _ in range(5):
-            step([integ_scalar], 0.0, 0.1)
-        scalar_state = integ_scalar.state
-
-        # Chunked path
-        integ_chunk = Integrator()
-        u_vec = np.full(5, 3.0)
-        integ_chunk.inputs["in"].vector_value = u_vec
-        t_vec = np.arange(5) * 0.1
-        integ_chunk.compute_chunk(t_vec, 0.1)
-        integ_chunk.update_state_chunk(t_vec, 0.1)
-
-        self.assertAlmostEqual(integ_chunk.state, scalar_state, places=6)
-
-
 class TestDerivative(unittest.TestCase):
     def test_first_sample_outputs_zero(self):
         d = Derivative()
@@ -134,26 +115,6 @@ class TestTransferFunction(unittest.TestCase):
         states_after_one_compute = list(tf.states)
         tf.compute(0.01, 0.01)
         self.assertEqual(tf.states, states_after_one_compute)
-
-    def test_compute_chunk_matches_scalar_stepping(self):
-        tf_scalar = TransferFunction()
-        tf_scalar.params["Numerator"] = [1.0]
-        tf_scalar.params["Denominator"] = [1.0, 1.0]
-        tf_scalar.inputs["in"].value = 1.0
-        dt = 0.01
-        for i in range(50):
-            step([tf_scalar], i * dt, dt)
-        scalar_out = tf_scalar.outputs["out"].value
-
-        tf_chunk = TransferFunction()
-        tf_chunk.params["Numerator"] = [1.0]
-        tf_chunk.params["Denominator"] = [1.0, 1.0]
-        tf_chunk.inputs["in"].vector_value = np.full(50, 1.0)
-        t_vec = np.arange(50) * dt
-        tf_chunk.compute_chunk(t_vec, dt)
-        tf_chunk.update_state_chunk(t_vec, dt)
-
-        self.assertAlmostEqual(tf_chunk.outputs["out"].vector_value[-1], scalar_out, places=6)
 
     def test_get_derivative_is_pure_and_matches_manual_euler_step(self):
         tf = TransferFunction()
@@ -291,25 +252,6 @@ class TestDiscreteTransferFunction(unittest.TestCase):
         self.assertTrue(any(v != 0.0 for v in dtf.w))
         dtf.reset()
         self.assertTrue(all(v == 0.0 for v in dtf.w))
-
-    def test_compute_chunk_matches_scalar_stepping(self):
-        import numpy as np
-        dtf_scalar = DiscreteTransferFunction()
-        set_params(dtf_scalar, Numerator=[0.5], Denominator=[1.0, -0.5])
-        dt = 0.01
-        for i in range(20):
-            dtf_scalar.inputs["in"].value = 1.0
-            dtf_scalar.compute(i * dt, dt)
-        scalar_out = dtf_scalar.outputs["out"].value
-
-        dtf_chunk = DiscreteTransferFunction()
-        set_params(dtf_chunk, Numerator=[0.5], Denominator=[1.0, -0.5])
-        dtf_chunk.inputs["in"].vector_value = np.full(20, 1.0)
-        t_vec = np.arange(20) * dt
-        dtf_chunk.compute_chunk(t_vec, dt)
-
-        self.assertAlmostEqual(dtf_chunk.outputs["out"].vector_value[-1], scalar_out, places=6)
-
 
 class TestPID(unittest.TestCase):
     def test_proportional_only(self):
