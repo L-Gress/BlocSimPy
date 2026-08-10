@@ -1,10 +1,11 @@
 import os
 import json
 import shutil
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, 
-                               QMenu, QInputDialog, QMessageBox, QStyle)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
+                               QMenu, QInputDialog, QMessageBox)
 from PySide6.QtCore import Qt, Signal
 from config.sim_config import SimConfig
+from . import icon_factory
 
 # Define the root directory for user library
 LIBRARY_ROOT = SimConfig.LIBRARY_ROOT
@@ -48,11 +49,7 @@ class UserLibraryWidget(QWidget):
                 if os.path.isdir(path):
                     folder_item = QTreeWidgetItem(self.tree)
                     folder_item.setText(0, entry)
-                    
-                    # --- FIXED LINE BELOW ---
-                    # Use QStyle.StandardPixmap.SP_DirIcon
-                    folder_item.setIcon(0, self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
-                    
+                    folder_item.setIcon(0, icon_factory.icon("open"))
                     folder_item.setData(0, Qt.UserRole, "folder")
                     folder_item.setData(0, Qt.UserRole + 1, path)
                     
@@ -61,12 +58,8 @@ class UserLibraryWidget(QWidget):
                         if sub_entry.endswith(".json"):
                             file_path = os.path.join(path, sub_entry)
                             file_item = QTreeWidgetItem(folder_item)
-                            file_item.setText(0, sub_entry[:-5]) 
-                            
-                            # --- FIXED LINE BELOW ---
-                            # Use QStyle.StandardPixmap.SP_FileIcon
-                            file_item.setIcon(0, self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon))
-                            
+                            file_item.setText(0, sub_entry[:-5])
+                            file_item.setIcon(0, icon_factory.icon("new"))
                             file_item.setData(0, Qt.UserRole, "file")
                             file_item.setData(0, Qt.UserRole + 1, file_path)
 

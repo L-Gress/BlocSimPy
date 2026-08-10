@@ -1,14 +1,22 @@
-"""Manages toolbar creation and toolbar actions."""
-from PySide6.QtWidgets import QToolBar, QMessageBox
-from PySide6.QtGui import QAction
-from ..dialogs import SimulationSettingsDialog, DiagramCheckDialog, DataInspectorDialog
+"""Owns every top-level QAction (File/Edit/Simulation/Help) and the toolbar.
+
+MainWindow's menu bar reuses these same QAction instances rather than
+creating its own -- one shortcut/icon/enabled-state per action, shown in two
+places (toolbar + menu) instead of two independent copies that could drift.
+"""
+from PySide6.QtWidgets import QToolBar, QMessageBox, QProgressDialog
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import Qt, QThread
+from ..dialogs import SimulationSettingsDialog, DiagramCheckDialog, DataInspectorDialog, AboutDialog
+from ..workers import SimulationWorker
+from .. import icon_factory
 from engine.simulation import SimulationEngine
-from engine.serialization import GraphSerializer
 
 
 class ToolbarManager:
-    """Manages the main window toolbar and its actions."""
-    
+    """Creates the app's QActions, the toolbar that hosts them, and the
+    simulation run/cancel flow (including the background thread)."""
+
     def __init__(self, main_window):
         self.main_window = main_window
         self.sim_duration = 10.0
@@ -16,72 +24,104 @@ class ToolbarManager:
         self.sim_solver = "euler"
         self.toolbar = None
         self.last_result = None  # most recent batch SimulationResult, for the Data Inspector
-        
+
+        # Kept alive while a simulation runs; released once it finishes.
+        self._sim_thread = None
+        self._sim_worker = None
+        self._progress_dialog = None
+
+    def _make_action(self, text, slot, shortcut=None, icon_name=None, parent=None):
+        action = QAction(text, parent or self.main_window)
+        if icon_name is not None:
+            action.setIcon(icon_factory.icon(icon_name))
+        if shortcut is not None:
+            action.setShortcut(shortcut)
+        action.triggered.connect(slot)
+        return action
+
     def create_toolbar(self):
-        """Create and configure the toolbar."""
+        """Create every QAction, wire it up, and lay them out on the toolbar."""
+        sm = self.main_window.scene_manager
+
+        # --- File ---
+        self.action_new = self._make_action("New", sm.new_graph, QKeySequence.New, "new")
+        self.action_load = self._make_action("Open...", sm.load_graph, QKeySequence.Open, "open")
+        self.action_save = self._make_action("Save", sm.save_graph, QKeySequence.Save, "save")
+        self.action_save_as = self._make_action(
+            "Save As...", sm.save_graph_as, QKeySequence.SaveAs, "save_as"
+        )
+        self.action_quit = self._make_action(
+            "Exit", self.main_window.close, QKeySequence.Quit, "quit"
+        )
+
+        # --- Edit ---
+        self.action_undo = self._make_action(
+            "Undo", sm.undo_manager.undo, QKeySequence.Undo, "undo"
+        )
+        self.action_redo = self._make_action("Redo", sm.undo_manager.redo, None, "redo")
+        self.action_redo.setShortcuts([QKeySequence.Redo, QKeySequence("Ctrl+Y")])
+        self.action_cut = self._make_action("Cut", sm.cut_selection, QKeySequence.Cut, "cut")
+        self.action_copy = self._make_action("Copy", sm.copy_selection, QKeySequence.Copy, "copy")
+        self.action_paste = self._make_action("Paste", sm.paste_selection, QKeySequence.Paste, "paste")
+        self.action_select_all = self._make_action(
+            "Select All", lambda: self.main_window.scene.select_all(), QKeySequence.SelectAll, "select_all"
+        )
+        self.action_delete = self._make_action(
+            "Delete", lambda: self.main_window.scene.delete_selected(), QKeySequence.Delete, "delete"
+        )
+
+        # --- Simulation ---
+        self.action_sim_settings = self._make_action(
+            "Settings...", self._show_sim_settings, None, "settings"
+        )
+        self.action_run = self._make_action("Run", self.run_simulation, "F5", "run")
+        self.action_inspector = self._make_action(
+            "Data Inspector", self.show_data_inspector, None, "inspector"
+        )
+
+        # --- Subsystem navigation ---
+        self.action_up = self._make_action("Go Up", sm.go_up_level, None, "up")
+
+        # --- Library ---
+        self.action_save_subgraph = self._make_action(
+            "Save SubGraph", sm.save_selected_subgraph_to_library, None, "subgraph"
+        )
+        self.action_toggle_lib = self._make_action(
+            "Toggle Library", self.main_window.dock_manager.toggle_library
+        )
+        self.action_scripts = self._make_action(
+            "User Scripts", self.main_window.script_manager.show_editor, None, "scripts"
+        )
+
+        # --- Help ---
+        self.action_help = self._make_action(
+            "Help", self.main_window.show_help, QKeySequence.HelpContents, "help"
+        )
+        self.action_about = self._make_action(
+            "About BlocSimPy", self.show_about, None, "about"
+        )
+
         self.toolbar = QToolBar("Main Toolbar")
         self.toolbar.setMovable(False)
-        
-        # Simulation actions
-        action_sim = QAction("⚙ Settings", self.main_window)
-        action_sim.triggered.connect(self._show_sim_settings)
-        self.toolbar.addAction(action_sim)
-        
-        action_run = QAction("▶ Run", self.main_window)
-        action_run.triggered.connect(self.run_simulation)
-        self.toolbar.addAction(action_run)
 
-        action_inspector = QAction("📊 Data Inspector", self.main_window)
-        action_inspector.triggered.connect(self.show_data_inspector)
-        self.toolbar.addAction(action_inspector)
+        for action in (self.action_sim_settings, self.action_run, self.action_inspector):
+            self.toolbar.addAction(action)
+        self.toolbar.addSeparator()
+        for action in (self.action_new, self.action_save, self.action_load, self.action_save_as):
+            self.toolbar.addAction(action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.action_undo)
+        self.toolbar.addAction(self.action_redo)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.action_up)
+        self.toolbar.addSeparator()
+        for action in (self.action_save_subgraph, self.action_toggle_lib, self.action_scripts):
+            self.toolbar.addAction(action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.action_help)
 
-        self.toolbar.addSeparator()
-        
-        # File actions
-        action_save = QAction("💾 Save", self.main_window)
-        action_save.triggered.connect(self.main_window.scene_manager.save_graph)
-        self.toolbar.addAction(action_save)
-        
-        action_load = QAction("📂 Load", self.main_window)
-        action_load.triggered.connect(self.main_window.scene_manager.load_graph)
-        self.toolbar.addAction(action_load)
-        
-        action_save_as = QAction("💾 Save As", self.main_window)
-        action_save_as.triggered.connect(self.main_window.scene_manager.save_graph_as)
-        self.toolbar.addAction(action_save_as)
-        
-        self.toolbar.addSeparator()
-        
-        # Subsystem navigation
-        action_up = QAction("⬆ Go Up", self.main_window)
-        action_up.triggered.connect(self.main_window.scene_manager.go_up_level)
-        self.toolbar.addAction(action_up)
-        
-        self.toolbar.addSeparator()
-        
-        # Library actions
-        action_save_subgraph = QAction("📦 Save SubGraph", self.main_window)
-        action_save_subgraph.triggered.connect(self.main_window.scene_manager.save_selected_subgraph_to_library)
-        self.toolbar.addAction(action_save_subgraph)
-        
-        action_toggle_lib = QAction("📚 Toggle Library", self.main_window)
-        action_toggle_lib.triggered.connect(self.main_window.dock_manager.toggle_library)
-        self.toolbar.addAction(action_toggle_lib)
-
-        # Scripts
-        action_scripts = QAction("📜 User Scripts", self.main_window)
-        action_scripts.triggered.connect(self.main_window.script_manager.show_editor)
-        self.toolbar.addAction(action_scripts)
-        
-        self.toolbar.addSeparator()
-        
-        # Help
-        action_help = QAction("❓ Help", self.main_window)
-        action_help.triggered.connect(self.main_window.show_help)
-        self.toolbar.addAction(action_help)
-        
         return self.toolbar
-    
+
     def _show_sim_settings(self):
         """Show simulation settings dialog."""
         dialog = SimulationSettingsDialog(
@@ -96,9 +136,13 @@ class ToolbarManager:
                 self.sim_duration = duration
                 self.sim_dt = dt
                 self.sim_solver = dialog.get_solver()
-    
+
+    def show_about(self):
+        AboutDialog(self.main_window).exec()
+
     def run_simulation(self):
-        """Run the simulation locally as a fixed-duration batch run."""
+        """Validate the diagram, then run it on a background thread with a
+        cancellable progress dialog so long runs don't freeze the UI."""
         if not self.main_window.scene_manager.blocks_ui:
             QMessageBox.warning(self.main_window, "No Blocks", "Add blocks to the scene first.")
             return
@@ -117,20 +161,50 @@ class ToolbarManager:
             if not check_dialog.exec():
                 return
 
-        # Create simulation engine
+        # Create and configure the simulation engine
         engine = SimulationEngine()
-
-        # Configure engine
         engine.configure(block_models, self.sim_duration, self.sim_dt, solver=self.sim_solver)
 
-        # Validate
         is_valid, error_msg = engine.validate()
         if not is_valid:
             QMessageBox.critical(self.main_window, "Validation Error", error_msg)
             return
 
-        # Run simulation
-        result = engine.run()
+        self.action_run.setEnabled(False)
+
+        self._sim_thread = QThread(self.main_window)
+        self._sim_worker = SimulationWorker(engine)
+        self._sim_worker.moveToThread(self._sim_thread)
+
+        self._sim_thread.started.connect(self._sim_worker.run)
+        self._sim_worker.finished.connect(self._on_simulation_finished)
+        self._sim_worker.finished.connect(self._sim_thread.quit)
+        self._sim_worker.finished.connect(self._sim_worker.deleteLater)
+        self._sim_thread.finished.connect(self._sim_thread.deleteLater)
+
+        self._progress_dialog = QProgressDialog(
+            "Running simulation...", "Cancel", 0, 100, self.main_window
+        )
+        self._progress_dialog.setWindowTitle("Simulation")
+        self._progress_dialog.setWindowModality(Qt.WindowModal)
+        self._progress_dialog.setMinimumDuration(0)
+        self._progress_dialog.setAutoClose(False)
+        self._progress_dialog.setAutoReset(False)
+        self._progress_dialog.canceled.connect(self._sim_worker.cancel)
+        self._sim_worker.progress.connect(lambda frac: self._progress_dialog.setValue(int(frac * 100)))
+
+        self._sim_thread.start()
+
+    def _on_simulation_finished(self, result):
+        """Slot for SimulationWorker.finished -- runs on the GUI thread."""
+        if self._progress_dialog is not None:
+            self._progress_dialog.close()
+            self._progress_dialog = None
+        self.action_run.setEnabled(True)
+
+        if result.cancelled:
+            self.main_window.statusBar().showMessage("Simulation cancelled.", 5000)
+            return
 
         if not result.success:
             QMessageBox.critical(self.main_window, "Simulation Error", result.error_message)
@@ -138,13 +212,12 @@ class ToolbarManager:
 
         self.last_result = result
 
-        # Display results
         QMessageBox.information(
             self.main_window,
             "Simulation Completed",
             "Simulation finished successfully.\n\n"
             "Double-click any Scope block to view its data, "
-            "or use 📊 Data Inspector to see every Scope at once."
+            "or use Data Inspector to see every Scope at once."
         )
 
     def show_data_inspector(self):

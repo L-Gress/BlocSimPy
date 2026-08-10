@@ -30,7 +30,7 @@ class DiagramCheckDialog(QDialog):
             is_error = issue.startswith("ERROR:")
             text = issue.split(":", 1)[-1].strip()
             item = QListWidgetItem(("⛔ " if is_error else "⚠ ") + text)
-            item.setForeground(QColor("#D64545") if is_error else QColor("#C98A2C"))
+            item.setForeground(QColor("#ff3b30") if is_error else QColor("#ff9500"))
             list_widget.addItem(item)
         layout.addWidget(list_widget)
 
