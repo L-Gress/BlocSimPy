@@ -2,7 +2,7 @@
 import numpy as np
 from typing import List, Dict, Any, Tuple
 from ..models import BlockModel
-from .executor import ExecutionOrdering
+from .executor import ExecutionOrdering, AlgebraicLoopError
 from .solvers import get_solver
 
 
@@ -114,5 +114,33 @@ class SimulationEngine:
         
         if not self.blocks:
             return False, "No blocks in simulation"
-        
+
         return True, ""
+
+    def check_diagram(self) -> "List[str]":
+        """
+        "Update Diagram" pre-flight check: surfaces structural problems
+        before Run, rather than failing mid-simulation (or, for unconnected
+        inputs, not failing at all -- silently reading 0.0). Separate from
+        validate() (dt/duration/block-list sanity), which is unchanged.
+
+        Each issue is a human-readable string prefixed "ERROR:" (blocking --
+        Run cannot proceed, e.g. an algebraic loop) or "WARNING:" (non-
+        blocking, e.g. an unconnected input -- that's existing, sometimes-
+        intentional behavior, so it doesn't suddenly hard-block diagrams
+        that already work today).
+        """
+        issues: "List[str]" = []
+
+        try:
+            ExecutionOrdering.topological_sort(self.blocks)
+        except AlgebraicLoopError as e:
+            issues.append(f"ERROR: {e}")
+
+        for block in self.blocks:
+            block_name = block.params.get("BlockName", block.name) if hasattr(block, "params") else block.name
+            for port_name, port in block.inputs.items():
+                if port.connected_port is None:
+                    issues.append(f"WARNING: {block_name}.{port_name} is not connected (will read 0.0)")
+
+        return issues
