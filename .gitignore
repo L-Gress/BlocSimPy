@@ -1,6 +1,7 @@
 # Build directories
 build/
 dist/
+*.spec
 
 # Python cache
 __pycache__/
@@ -11,7 +12,31 @@ __pycache__/
 # Python egg files
 *.egg-info/
 *.egg
-*.waw
-*.json
-*.csv
 
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Test/coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Recorded/exported audio and CSV output (e.g. AudioRecord's default
+# "output.wav", Scope CSV exports) -- these are simulation run artifacts,
+# not source. Diagram files are also .json but live under examples/ and
+# user_library/, which are explicitly force-added there; this pattern is
+# about accidental recordings dropped at the repo root or wherever the app
+# happens to run from.
+output.wav
+*.csv
