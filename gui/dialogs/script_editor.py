@@ -7,7 +7,7 @@ class ScriptEditorDialog(QDialog):
     def __init__(self, parent, script_manager):
         super().__init__(parent)
         self.script_manager = script_manager
-        self.setWindowTitle("📜 User Scripts")
+        self.setWindowTitle("User Scripts")
         self.resize(800, 600)
         
         layout = QVBoxLayout(self)
@@ -30,20 +30,22 @@ class ScriptEditorDialog(QDialog):
         self.output_console = QTextEdit()
         self.output_console.setReadOnly(True)
         self.output_console.setMaximumHeight(150)
-        self.output_console.setStyleSheet("background-color: #222; color: #0f0; font-family: Consolas;")
+        self.output_console.setStyleSheet(
+            "background-color: #1c1c1e; color: #32d74b; font-family: Consolas;"
+        )
         layout.addWidget(self.output_console)
-        
+
         # Buttons
         btn_layout = QHBoxLayout()
-        
-        btn_load = QPushButton("📂 Load")
+
+        btn_load = QPushButton("Load")
         btn_load.clicked.connect(self.load_script)
-        
-        btn_save = QPushButton("💾 Save")
+
+        btn_save = QPushButton("Save")
         btn_save.clicked.connect(self.save_script)
-        
-        btn_run = QPushButton("▶ Run Script")
-        btn_run.setStyleSheet("background-color: #2E86AB; color: white; font-weight: bold; padding: 6px 12px;")
+
+        btn_run = QPushButton("Run Script")
+        btn_run.setDefault(True)  # picks up the accent-blue QPushButton:default styling
         btn_run.clicked.connect(self.run_script)
         
         btn_clear = QPushButton("Clear Output")

@@ -75,9 +75,10 @@ class UIBlock(QGraphicsItem):
         """Draw the block and its labels."""
         # 1. Draw Block Background
         painter.setBrush(QBrush(UIConfig.BLOCK_BG_COLOR))
-        border_color = UIConfig.BLOCK_SELECTED_COLOR if self.isSelected() else UIConfig.BLOCK_BORDER_COLOR
+        is_selected = self.isSelected()
+        border_color = UIConfig.BLOCK_SELECTED_COLOR if is_selected else UIConfig.BLOCK_BORDER_COLOR
         pen = QPen(border_color)
-        pen.setWidth(UIConfig.BLOCK_BORDER_WIDTH)
+        pen.setWidth(UIConfig.BLOCK_BORDER_WIDTH_SELECTED if is_selected else UIConfig.BLOCK_BORDER_WIDTH)
         painter.setPen(pen)
         painter.drawRoundedRect(
             0, 0, self.width, self.height, 

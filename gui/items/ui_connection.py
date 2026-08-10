@@ -94,7 +94,7 @@ class UIConnection(QGraphicsPathItem):
         if fork is None:
             return
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(Qt.black))
+        painter.setBrush(QBrush(UIConfig.FORK_DOT_COLOR))
         painter.drawEllipse(fork, 3.0, 3.0)
 
     def _draw_arrowhead(self, painter, color):
