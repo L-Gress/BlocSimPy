@@ -18,24 +18,18 @@ no GUI dependency, so it can also be driven headlessly/programmatically or teste
 
 ## Features
 
-- **43 block types** across Math, Signal (dynamics), Discontinuities, Signal Routing, Logic,
+- 43 block types across Math, Signal (dynamics), Discontinuities, Signal Routing, Logic,
   Sources, Sinks, I/O, and Structure — see the full list below.
-- **Two solvers**: fixed-step forward Euler and classic 4th-order Runge-Kutta.
-- **Algebraic-loop detection**: a real `AlgebraicLoopError` naming the blocks involved, instead of
-  silently guessing an order — computed per (input, output) port pair, so it correctly recognizes
-  loops broken by state (Integrator, Delay, a strictly-proper TransferFunction) instead of flagging
-  every feedback loop as unresolvable.
-- **Subsystems (SubGraph)**: group a diagram into a reusable block with its own named ports, a
+- Two solvers: fixed-step forward Euler and classic 4th-order Runge-Kutta.
+- Algebraic-loop detection: a real `AlgebraicLoopError` naming the blocks involved.
+- Subsystems (SubGraph): group a diagram into a reusable block with its own named ports, a
   custom icon, and either synchronous ("Standard") or independently-clocked
   ("Threaded"/"Audio") execution.
-- **Vector/bus signals**: `Mux`/`Demux` and named `BusCreator`/`BusSelector` blocks for grouping
-  and splitting related signals.
-- **Live audio I/O**: `AudioInput`/`AudioOutput`/`AudioRecord`/`AudioRead` blocks for real-time,
-  hardware-clocked signal processing via `sounddevice`.
-- **A Python Function block**: arbitrary per-timestep Python code with persistent state, for logic
-  that doesn't fit an existing block.
-- **"Update Diagram" pre-flight check**, a Data Inspector for viewing every Scope from the last run
-  at once, CSV export, canvas annotations, undo/redo, and a searchable block palette.
+- Vector/bus signals: `Mux`/`Demux` and named `BusCreator`/`BusSelector` blocks.
+- Live audio I/O: `AudioInput`/`AudioOutput`/`AudioRecord`/`AudioRead` blocks via `sounddevice`.
+- A Python Function block: arbitrary per-timestep Python code with persistent state.
+- "Update Diagram" pre-flight check, a Data Inspector, CSV export, canvas annotations, undo/redo,
+  and a searchable block palette.
 
 ### Block library
 
