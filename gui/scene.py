@@ -109,12 +109,27 @@ class NodeScene(QGraphicsScene):
                 if conn.end_port.model.connected_port == conn.start_port.model:
                     conn.end_port.model.connected_port = None
             self.removeItem(conn)
-            
+
             parent = self.parent()
             if parent and hasattr(parent, 'scene_manager'):
                 parent.scene_manager.take_snapshot()
         except Exception:
             pass
+
+    def select_all(self):
+        """Select every item on the canvas (blocks, connections, annotations)."""
+        for item in self.items():
+            item.setSelected(True)
+
+    def delete_selected(self):
+        """Delete every currently-selected block/connection/annotation."""
+        for item in self.selectedItems():
+            if isinstance(item, UIBlock):
+                self.delete_block(item)
+            elif isinstance(item, UIConnection):
+                self.delete_connection(item)
+            elif isinstance(item, UIAnnotation):
+                self.delete_annotation(item)
 
     def mouseMoveEvent(self, event):
         if self.temp_connection:
@@ -181,70 +196,31 @@ class NodeScene(QGraphicsScene):
         conn_ui.refresh_highlight()
 
     def keyPressEvent(self, event):
-        """Handle keyboard shortcuts."""
+        """Handle the one shortcut that has no menu/QAction equivalent.
+
+        Copy/Cut/Paste/Select All/Undo/Redo/Delete are now real QActions
+        with shortcuts (see MainWindow's menu bar / ToolbarManager) -- Qt's
+        shortcut system intercepts those key combos before they'd ever reach
+        here, so handling them in both places would just be dead code.
+        Rotate ("R") stays here since it's block-selection-specific and has
+        no natural menu bar/File-Edit-View home.
+        """
         focus_item = self.focusItem()
         if isinstance(focus_item, UIAnnotation) and focus_item.textInteractionFlags() != Qt.NoTextInteraction:
             # Actively editing an annotation's text -- let Qt's normal text
-            # editing (Delete, Ctrl+A "select all text", etc.) run instead
-            # of the diagram-level shortcuts below, which would otherwise
-            # hijack those same keys (e.g. deleting the whole annotation
-            # instead of a character).
+            # editing run instead of the diagram-level shortcuts below.
             super().keyPressEvent(event)
             return
-
-        # Check for Copy/Cut/Paste
-        modifiers = event.modifiers()
-        if modifiers & Qt.ControlModifier:
-            parent = self.parent()
-            if parent and hasattr(parent, 'scene_manager'):
-                if event.key() == Qt.Key_C:
-                    parent.scene_manager.copy_selection()
-                    event.accept()
-                    return
-                elif event.key() == Qt.Key_X:
-                    parent.scene_manager.cut_selection()
-                    event.accept()
-                    return
-                elif event.key() == Qt.Key_V:
-                    parent.scene_manager.paste_selection()
-                    event.accept()
-                    return
-                elif event.key() == Qt.Key_A:
-                    for item in self.items():
-                        item.setSelected(True)
-                    event.accept()
-                    return
-                elif event.key() == Qt.Key_Z:
-                    if modifiers & Qt.ShiftModifier:
-                        parent.scene_manager.undo_manager.redo()
-                    else:
-                        parent.scene_manager.undo_manager.undo()
-                    event.accept()
-                    return
-                elif event.key() == Qt.Key_Y:
-                    parent.scene_manager.undo_manager.redo()
-                    event.accept()
-                    return
 
         if event.key() == Qt.Key_R:
             for item in self.selectedItems():
                 if isinstance(item, UIBlock):
                     item.rotate_90()
-            
+
             parent = self.parent()
             if parent and hasattr(parent, 'scene_manager'):
                 parent.scene_manager.take_snapshot()
             event.accept()
             return
-        # Delete key shortcut
-        elif event.key() == Qt.Key_Delete:
-            for item in self.selectedItems():
-                if isinstance(item, UIBlock):
-                    self.delete_block(item)
-                elif isinstance(item, UIConnection):
-                    self.delete_connection(item)
-                elif isinstance(item, UIAnnotation):
-                    self.delete_annotation(item)
-            event.accept()
-        else:
-            super().keyPressEvent(event)
+
+        super().keyPressEvent(event)

@@ -16,20 +16,76 @@ class SceneManager:
         self.blocks_ui = []
         self.annotations_ui = []
         self.current_file_path = None
-        
+        self.is_modified = False
+        self._baseline_taken = False
+
         self.undo_manager = UndoManager(self)
         self.take_snapshot() # Initial empty state snapshot
-        
+
         # Clipboard
         self.clipboard_data = None
-        
+
         # Subsystem navigation
         self.subsystem_stack = []
         self.breadcrumb_label = None
-        
+
     def take_snapshot(self):
         """Helper to take a snapshot for undo/redo."""
         self.undo_manager.take_snapshot()
+        # The very first snapshot (taken in __init__, and again whenever
+        # new_graph()/_load_scene_data() re-baseline the document) reflects
+        # a just-loaded/blank state, not an edit -- don't flag it dirty.
+        if self._baseline_taken:
+            self.set_modified(True)
+        else:
+            self._baseline_taken = True
+
+    def set_modified(self, modified):
+        """Update the dirty flag and refresh the window title's [*] indicator."""
+        self.is_modified = modified
+        if hasattr(self.main_window, "refresh_title"):
+            self.main_window.refresh_title()
+
+    def confirm_discard_changes(self):
+        """Ask to save unsaved changes before a destructive op (New/Load/Close).
+
+        Returns True if it's safe to proceed (no changes, discarded, or saved
+        successfully), False if the caller should abort (user cancelled, or
+        chose Save but the save dialog was itself cancelled).
+        """
+        if not self.is_modified:
+            return True
+
+        reply = QMessageBox.question(
+            self.main_window,
+            "Unsaved Changes",
+            "This diagram has unsaved changes. Save them before continuing?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save,
+        )
+        if reply == QMessageBox.Save:
+            self.save_graph()
+            return not self.is_modified
+        return reply == QMessageBox.Discard
+
+    def new_graph(self):
+        """Clear the scene and start a fresh, unsaved diagram."""
+        if not self.confirm_discard_changes():
+            return
+
+        self.main_window.scene.clear()
+        self.blocks_ui.clear()
+        self.annotations_ui.clear()
+        self.subsystem_stack.clear()
+        self.current_file_path = None
+
+        self.undo_manager.undo_stack.clear()
+        self.undo_manager.redo_stack.clear()
+        self._baseline_taken = False
+        self.take_snapshot()
+
+        self._update_breadcrumb()
+        self.set_modified(False)
         
     def add_block_to_scene(self, list_item):
         """Add a block from the library to the scene (ListWidget version)."""
@@ -239,6 +295,9 @@ class SceneManager:
     
     def load_graph(self):
         """Load a graph from file."""
+        if not self.confirm_discard_changes():
+            return
+
         file_path, _ = QFileDialog.getOpenFileName(
             self.main_window,
             "Load Graph",
@@ -251,7 +310,11 @@ class SceneManager:
                     data = json.load(f)
                 self._load_scene_data(data)
                 self.current_file_path = file_path
+                self.undo_manager.undo_stack.clear()
+                self.undo_manager.redo_stack.clear()
+                self._baseline_taken = False
                 self.take_snapshot()
+                self.set_modified(False)
                 QMessageBox.information(self.main_window, "Success", f"Loaded from {file_path}")
             except Exception as e:
                 QMessageBox.critical(self.main_window, "Error", f"Failed to load: {str(e)}")
@@ -265,9 +328,9 @@ class SceneManager:
             "JSON Files (*.json)"
         )
         if file_path:
-            self._save_to_file(file_path)
             self.current_file_path = file_path
-    
+            self._save_to_file(file_path)
+
     def _save_to_file(self, file_path):
         """Internal method to save graph to file."""
         try:
@@ -282,6 +345,7 @@ class SceneManager:
             data = GraphSerializer.serialize_graph(self.blocks_ui, self.annotations_ui, sim_params)
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4)
+            self.set_modified(False)
             QMessageBox.information(self.main_window, "Success", f"Saved to {file_path}")
         except Exception as e:
             QMessageBox.critical(self.main_window, "Error", f"Failed to save: {str(e)}")

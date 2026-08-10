@@ -49,7 +49,8 @@ class UndoManager:
         
         # Restore
         self.scene_manager._load_scene_data(prev_state)
-        
+        self.scene_manager.set_modified(True)
+
         self._is_undoing_redoing = False
 
     def redo(self):
@@ -67,5 +68,6 @@ class UndoManager:
         
         # Restore
         self.scene_manager._load_scene_data(next_state)
-        
+        self.scene_manager.set_modified(True)
+
         self._is_undoing_redoing = False
