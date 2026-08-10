@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from ..dialogs import SimulationSettingsDialog
+from ..dialogs import SimulationSettingsDialog, DiagramCheckDialog, DataInspectorDialog
 from engine.simulation import SimulationEngine
 from engine.serialization import GraphSerializer
 
@@ -18,6 +18,7 @@ class ToolbarManager:
         self.sim_dt = 0.01
         self.sim_solver = "euler"
         self.toolbar = None
+        self.last_result = None  # most recent batch SimulationResult, for the Data Inspector
         
     def create_toolbar(self):
         """Create and configure the toolbar."""
@@ -32,6 +33,10 @@ class ToolbarManager:
         action_run = QAction("▶ Run", self.main_window)
         action_run.triggered.connect(self.run_simulation)
         self.toolbar.addAction(action_run)
+
+        action_inspector = QAction("📊 Data Inspector", self.main_window)
+        action_inspector.triggered.connect(self.show_data_inspector)
+        self.toolbar.addAction(action_inspector)
 
         self.toolbar.addSeparator()
         
@@ -109,6 +114,17 @@ class ToolbarManager:
         # Collect all block models
         block_models = [ui_block.model for ui_block in self.main_window.scene_manager.blocks_ui]
 
+        # "Update Diagram" pre-flight check: catch algebraic loops and
+        # unconnected inputs before running, rather than failing mid-run
+        # (or, for unconnected inputs, silently reading 0.0 unnoticed).
+        check_engine = SimulationEngine()
+        check_engine.blocks = block_models
+        issues = check_engine.check_diagram()
+        if issues:
+            check_dialog = DiagramCheckDialog(issues, self.main_window)
+            if not check_dialog.exec():
+                return
+
         has_audio_io = any(b.__class__.__name__ in ["AudioInput", "AudioOutput"] for b in block_models)
         if has_audio_io:
             self._run_audio_realtime(block_models)
@@ -133,13 +149,26 @@ class ToolbarManager:
             QMessageBox.critical(self.main_window, "Simulation Error", result.error_message)
             return
 
+        self.last_result = result
+
         # Display results
         QMessageBox.information(
             self.main_window,
             "Simulation Completed",
             "Simulation finished successfully.\n\n"
-            "Double-click any Scope block to view its data."
+            "Double-click any Scope block to view its data, "
+            "or use 📊 Data Inspector to see every Scope at once."
         )
+
+    def show_data_inspector(self):
+        """Open the Data Inspector for the most recent batch run's Scope data."""
+        if self.last_result is None or not self.last_result.scope_data:
+            QMessageBox.information(
+                self.main_window, "No Data",
+                "Run a (non-audio) simulation first to have data to inspect."
+            )
+            return
+        DataInspectorDialog(self.last_result, self.main_window).exec()
 
     def _run_audio_realtime(self, block_models):
         """Stream an audio-driven graph against the sound hardware until the user stops it."""

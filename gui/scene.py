@@ -3,8 +3,8 @@ from PySide6.QtWidgets import QGraphicsScene
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QColor
 from config.ui_config import UIConfig
-from .items import UIPort, UIConnection, UIBlock
-from .menus import BlockContextMenu, ConnectionContextMenu
+from .items import UIPort, UIConnection, UIBlock, UIAnnotation
+from .menus import BlockContextMenu, ConnectionContextMenu, CanvasContextMenu
 
 
 class NodeScene(QGraphicsScene):
@@ -40,6 +40,11 @@ class NodeScene(QGraphicsScene):
             elif isinstance(item, UIConnection):
                 ConnectionContextMenu.show(item, self, event.screenPos())
                 return
+            elif not isinstance(item, UIAnnotation):
+                # Empty canvas (or clicked an annotation -- let its own
+                # context/edit behavior take over rather than this menu).
+                CanvasContextMenu.show(self, event.scenePos(), event.screenPos())
+                return
 
         # 3. Handle Displacement Start
         if event.button() == Qt.LeftButton and isinstance(item, UIBlock):
@@ -64,6 +69,30 @@ class NodeScene(QGraphicsScene):
         if parent and hasattr(parent, 'scene_manager'):
             try:
                 parent.scene_manager.blocks_ui.remove(block_item)
+                parent.scene_manager.take_snapshot()
+            except ValueError:
+                pass
+
+    def add_annotation(self, pos, text="Note"):
+        """Create a free-text note at the given scene position."""
+        annotation = UIAnnotation(text)
+        annotation.setPos(pos)
+        self.addItem(annotation)
+
+        parent = self.parent()
+        if parent and hasattr(parent, 'scene_manager'):
+            parent.scene_manager.annotations_ui.append(annotation)
+            parent.scene_manager.take_snapshot()
+        return annotation
+
+    def delete_annotation(self, annotation_item):
+        """Delete a free-text annotation."""
+        self.removeItem(annotation_item)
+
+        parent = self.parent()
+        if parent and hasattr(parent, 'scene_manager'):
+            try:
+                parent.scene_manager.annotations_ui.remove(annotation_item)
                 parent.scene_manager.take_snapshot()
             except ValueError:
                 pass
@@ -153,6 +182,16 @@ class NodeScene(QGraphicsScene):
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
+        focus_item = self.focusItem()
+        if isinstance(focus_item, UIAnnotation) and focus_item.textInteractionFlags() != Qt.NoTextInteraction:
+            # Actively editing an annotation's text -- let Qt's normal text
+            # editing (Delete, Ctrl+A "select all text", etc.) run instead
+            # of the diagram-level shortcuts below, which would otherwise
+            # hijack those same keys (e.g. deleting the whole annotation
+            # instead of a character).
+            super().keyPressEvent(event)
+            return
+
         # Check for Copy/Cut/Paste
         modifiers = event.modifiers()
         if modifiers & Qt.ControlModifier:
@@ -204,6 +243,8 @@ class NodeScene(QGraphicsScene):
                     self.delete_block(item)
                 elif isinstance(item, UIConnection):
                     self.delete_connection(item)
+                elif isinstance(item, UIAnnotation):
+                    self.delete_annotation(item)
             event.accept()
         else:
             super().keyPressEvent(event)

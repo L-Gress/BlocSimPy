@@ -4,7 +4,7 @@ from PySide6.QtCore import QPointF
 import json
 from engine.serialization import GraphSerializer
 from engine.blocks import BLOCK_REGISTRY
-from ..items import UIBlock, UIConnection
+from ..items import UIBlock, UIConnection, UIAnnotation
 from .undo_manager import UndoManager
 
 
@@ -13,7 +13,8 @@ class SceneManager:
     
     def __init__(self, main_window):
         self.main_window = main_window
-        self.blocks_ui = [] 
+        self.blocks_ui = []
+        self.annotations_ui = []
         self.current_file_path = None
         
         self.undo_manager = UndoManager(self)
@@ -129,36 +130,70 @@ class SceneManager:
     def enter_subsystem(self, subsystem_ui_block):
         """Called when double-clicking a SubSystem block."""
         subsystem_model = subsystem_ui_block.model
-        
+
         # Save current scene state
         current_data = GraphSerializer.serialize_graph(self.blocks_ui)
         self.subsystem_stack.append({
             "data": current_data,
-            "subsystem_model": subsystem_model
+            "subsystem_model": subsystem_model,
+            # Snapshot each InputPort/OutputPort's name at entry time, keyed
+            # by the live model object's id (stable for the duration of this
+            # edit session, even though it's reassigned a fresh numeric id
+            # on entry vs. whatever internal_blocks_data had saved). Used by
+            # go_up_level() to detect renames and fix up the parent-level
+            # wire that references the OLD name -- see there for why.
+            "initial_port_names": {},
         })
-        
+
         # Load subsystem internal scene
         internal_data = {
             "blocks": subsystem_model.internal_blocks_data,
             "connections": subsystem_model.internal_connections_data
         }
         self._load_scene_data(internal_data)
+
+        initial_port_names = self.subsystem_stack[-1]["initial_port_names"]
+        for ui_block in self.blocks_ui:
+            if ui_block.model.__class__.__name__ in ("InputPort", "OutputPort"):
+                initial_port_names[ui_block.model.id] = ui_block.model.params.get("PortName")
+
         self._update_breadcrumb()
-    
+
     def go_up_level(self):
         """Called by Toolbar button to go back up."""
         if not self.subsystem_stack:
             QMessageBox.information(self.main_window, "Top Level", "Already at top level.")
             return
-        
+
+        # 0. Detect InputPort/OutputPort renames made while inside, so the
+        # parent-level wire (recorded by name in parent_data["connections"]
+        # back when we entered) can be re-pointed at the new name instead of
+        # silently failing to reconnect -- sync_ports_from_data() rebuilds
+        # the SubGraph's ports keyed by the CURRENT name, so a stale
+        # old-name connection reference would otherwise just find nothing.
+        parent_context = self.subsystem_stack[-1]
+        initial_port_names = parent_context["initial_port_names"]
+        input_renames = {}
+        output_renames = {}
+        for ui_block in self.blocks_ui:
+            cls_name = ui_block.model.__class__.__name__
+            if cls_name not in ("InputPort", "OutputPort"):
+                continue
+            old_name = initial_port_names.get(ui_block.model.id)
+            new_name = ui_block.model.params.get("PortName")
+            if old_name is not None and old_name != new_name:
+                if cls_name == "InputPort":
+                    input_renames[old_name] = new_name
+                else:
+                    output_renames[old_name] = new_name
+
         # 1. Serialize the CURRENT scene (the inside of the subsystem)
         current_subsystem_data = GraphSerializer.serialize_graph(self.blocks_ui)
-        
+
         # 2. Get the parent context
-        parent_context = self.subsystem_stack[-1]
         parent_data = parent_context["data"]
         subsystem_id = parent_context["subsystem_model"].id
-        
+
         # 3. Update the SubGraph block in the PARENT data with new internal data
         # We must find the block data that corresponds to the subsystem we are leaving
         found = False
@@ -168,9 +203,17 @@ class SceneManager:
                 block_data["internal_connections_data"] = current_subsystem_data["connections"]
                 found = True
                 break
-                
+
         if not found:
             print(f"Warning: Could not find original SubGraph block (ID: {subsystem_id}) in parent data.")
+
+        # 3b. Re-point any parent-level wire attached to a renamed port.
+        if input_renames or output_renames:
+            for conn_data in parent_data.get("connections", []):
+                if conn_data.get("to_block_id") == subsystem_id and conn_data.get("to_port") in input_renames:
+                    conn_data["to_port"] = input_renames[conn_data["to_port"]]
+                if conn_data.get("from_block_id") == subsystem_id and conn_data.get("from_port") in output_renames:
+                    conn_data["from_port"] = output_renames[conn_data["from_port"]]
 
         # 4. Restore parent scene from the UPDATED data
         # This creates NEW block instances, so the old subsystem_model reference is indeed obsolete
@@ -178,7 +221,7 @@ class SceneManager:
         # so connections are restored correctly by _load_scene_data.
         # We DO NOT need to manually refresh ports here anymore; doing so breaks the just-restored connections.
         self._load_scene_data(parent_data)
-        
+
         self.subsystem_stack.pop()
         self._update_breadcrumb()
         
@@ -228,7 +271,15 @@ class SceneManager:
     def _save_to_file(self, file_path):
         """Internal method to save graph to file."""
         try:
-            data = GraphSerializer.serialize_graph(self.blocks_ui)
+            tm = getattr(self.main_window, 'toolbar_manager', None)
+            sim_params = None
+            if tm is not None:
+                sim_params = {
+                    "duration": tm.sim_duration,
+                    "dt": tm.sim_dt,
+                    "solver": tm.sim_solver,
+                }
+            data = GraphSerializer.serialize_graph(self.blocks_ui, self.annotations_ui, sim_params)
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4)
             QMessageBox.information(self.main_window, "Success", f"Saved to {file_path}")
@@ -240,10 +291,26 @@ class SceneManager:
         # Clear current scene
         self.main_window.scene.clear()
         self.blocks_ui.clear()
-        
+        self.annotations_ui.clear()
+
         # Deserialize
         block_models, connections_data = GraphSerializer.deserialize_graph(data)
-        
+
+        # Restore simulation settings (duration/dt/solver) if the file has
+        # them -- absent for older save files or subsystem-internal data
+        # (enter_subsystem/go_up_level also route through this method), in
+        # which case the toolbar's current values are simply left alone.
+        sim_params = GraphSerializer.deserialize_simulation_params(data)
+        if sim_params:
+            tm = getattr(self.main_window, 'toolbar_manager', None)
+            if tm is not None:
+                if "duration" in sim_params:
+                    tm.sim_duration = sim_params["duration"]
+                if "dt" in sim_params:
+                    tm.sim_dt = sim_params["dt"]
+                if "solver" in sim_params:
+                    tm.sim_solver = sim_params["solver"]
+
         # Create UI blocks
         id_to_ui_block = {}
         for block_model in block_models:
@@ -289,7 +356,14 @@ class SceneManager:
                     from_port_ui.connections.append(conn)
                     to_port_ui.connections.append(conn)
                     to_port_ui.model.connected_port = from_port_ui.model
-    
+
+        # Recreate annotations (free-text notes; no connections/id_map involved)
+        for entry in GraphSerializer.deserialize_annotations(data):
+            annotation = UIAnnotation(entry["text"])
+            annotation.setPos(entry["x"], entry["y"])
+            self.main_window.scene.addItem(annotation)
+            self.annotations_ui.append(annotation)
+
     def copy_selection(self):
         """Copy selected blocks to clipboard."""
         selected = self.main_window.scene.selectedItems()

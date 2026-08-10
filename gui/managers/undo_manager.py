@@ -18,7 +18,7 @@ class UndoManager:
             return
             
         # Serialize current state
-        state = GraphSerializer.serialize_graph(self.scene_manager.blocks_ui)
+        state = GraphSerializer.serialize_graph(self.scene_manager.blocks_ui, self.scene_manager.annotations_ui)
         state_str = json.dumps(state)
         
         # Only push if it's different from the last snapshot

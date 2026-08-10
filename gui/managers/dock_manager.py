@@ -130,8 +130,17 @@ class DockManager:
             for j in range(category.childCount()):
                 child = category.child(j)
                 text = child.text(0)
-                
-                if search_lower in text.lower():
+
+                # Match on the block's name OR its BLOCK_INFO description,
+                # so e.g. searching "clamp" finds Saturation/Dead Zone even
+                # though neither name contains that word.
+                matches = search_lower in text.lower()
+                if not matches:
+                    block_cls = BLOCK_REGISTRY.get(text)
+                    description = getattr(block_cls, "BLOCK_INFO", {}).get("description", "") if block_cls else ""
+                    matches = search_lower in description.lower()
+
+                if matches:
                     child.setHidden(False)
                     cat_visible_children += 1
                 else:

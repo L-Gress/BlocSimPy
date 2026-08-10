@@ -1,7 +1,7 @@
 """UI representation of a block."""
 from PySide6.QtWidgets import QGraphicsItem
 from PySide6.QtCore import Qt, QRectF, QPointF
-from PySide6.QtGui import QPen, QBrush, QPainterPath, QColor
+from PySide6.QtGui import QPen, QBrush, QPainterPath, QColor, QPixmap
 from config.ui_config import UIConfig
 from .ui_port import UIPort
 
@@ -19,6 +19,8 @@ class UIBlock(QGraphicsItem):
         self.width = UIConfig.DEFAULT_BLOCK_WIDTH
         self.height = UIConfig.DEFAULT_BLOCK_HEIGHT
         self.ports_ui = {}
+        self._mask_icon_path = None
+        self._mask_pixmap = None
         self._setup_ports()
 
     def _setup_ports(self):
@@ -133,24 +135,59 @@ class UIBlock(QGraphicsItem):
             painter.drawText(rect, align, name)
             painter.restore()
 
-        # 3. Draw Main Block Name
+        # 3. Draw Main Block Name (or a custom mask icon, if configured)
+        icon_path = self.model.params.get("MaskIconPath") if hasattr(self.model, "params") else None
+        drew_icon = self._draw_mask_icon(painter, icon_path) if icon_path else False
+
+        if not drew_icon:
+            painter.save()
+            title_font = painter.font()
+            title_font.setPointSize(UIConfig.TITLE_FONT_SIZE)
+            title_font.setBold(True)
+            painter.setFont(title_font)
+
+            center = QPointF(self.width/2, self.height/2)
+            painter.translate(center)
+            painter.rotate(-self.rotation())
+
+            painter.setPen(UIConfig.TITLE_COLOR)
+            painter.drawText(
+                QRectF(-self.width/2, -self.height/2, self.width, self.height),
+                Qt.AlignCenter,
+                self.model.name
+            )
+            painter.restore()
+
+    def _draw_mask_icon(self, painter, icon_path):
+        """Draw a cached custom icon centered in the block, in place of the
+        generic title text. Keyed off params['MaskIconPath'] -- a
+        convention any block kind can opt into (set in its own
+        get_editor_dialog), not a SubGraph-specific type-check. Returns
+        False (falls back to the text label) if the path is empty or the
+        image fails to load.
+        """
+        if self._mask_icon_path != icon_path:
+            pixmap = QPixmap(icon_path)
+            self._mask_pixmap = pixmap if not pixmap.isNull() else None
+            self._mask_icon_path = icon_path
+
+        if self._mask_pixmap is None:
+            return False
+
         painter.save()
-        title_font = painter.font()
-        title_font.setPointSize(UIConfig.TITLE_FONT_SIZE)
-        title_font.setBold(True)
-        painter.setFont(title_font)
-        
         center = QPointF(self.width/2, self.height/2)
         painter.translate(center)
         painter.rotate(-self.rotation())
-        
-        painter.setPen(UIConfig.TITLE_COLOR)
-        painter.drawText(
-            QRectF(-self.width/2, -self.height/2, self.width, self.height), 
-            Qt.AlignCenter, 
-            self.model.name
+
+        margin = 6
+        target_w = max(4, self.width - 2 * margin)
+        target_h = max(4, self.height - 2 * margin)
+        scaled = self._mask_pixmap.scaled(
+            int(target_w), int(target_h), Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
+        painter.drawPixmap(int(-scaled.width() / 2), int(-scaled.height() / 2), scaled)
         painter.restore()
+        return True
 
     def itemChange(self, change, value):
         """Called when the item moves, rotates, or is (de)selected."""
