@@ -36,6 +36,9 @@ class MathFunction(BlockModel):
             "Asin": np.arcsin,
             "Acos": np.arccos,
             "Atan": np.arctan,
+            "Sinh": np.sinh,
+            "Cosh": np.cosh,
+            "Tanh": np.tanh,
             "Floor": np.floor,
             "Ceil": np.ceil,
         }
@@ -74,7 +77,7 @@ class MathFunction(BlockModel):
         layout = QFormLayout(dialog)
         
         combo = QComboBox()
-        funcs = ["Abs", "Exp", "Log", "Log10", "Sqrt", "Square", "Sin", "Cos", "Tan", "Asin", "Acos", "Atan", "Floor", "Ceil"]
+        funcs = ["Abs", "Exp", "Log", "Log10", "Sqrt", "Square", "Sin", "Cos", "Tan", "Asin", "Acos", "Atan", "Sinh", "Cosh", "Tanh", "Floor", "Ceil"]
         combo.addItems(funcs)
         combo.setCurrentText(self.params.get("Function", "Abs"))
         layout.addRow("Function:", combo)

@@ -30,8 +30,6 @@ class DiscreteTransferFunction(BlockModel):
         "category": "Signal"
     }
 
-    has_direct_feedthrough = True  # b0 term
-
     def __init__(self):
         super().__init__("DiscreteTransferFunction")
         self.add_input("in")
@@ -52,6 +50,15 @@ class DiscreteTransferFunction(BlockModel):
         if current != self._cache_key:
             self._update_coeffs()
             self._cache_key = current
+
+    @property
+    def has_direct_feedthrough(self):
+        """Live, not a fixed class attribute -- see TransferFunction's
+        identical property for the full rationale. b0 == 0 means no direct
+        feedthrough, so a loop closed through it is well-defined and must
+        not be flagged as an algebraic loop."""
+        self._refresh_if_needed()
+        return self._b[0] != 0 if self._b else False
 
     def _update_coeffs(self):
         b_raw = parse_coeffs(self.params.get("Numerator", [0.5]))

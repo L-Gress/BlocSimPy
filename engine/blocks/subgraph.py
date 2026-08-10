@@ -1,4 +1,5 @@
 from ..models import BlockModel
+from ._feedthrough_utils import feedthrough_pairs
 import threading
 import queue
 import time
@@ -41,8 +42,48 @@ class SubGraph(BlockModel):
         self.add_param("Execution Mode", "Standard") # Options: Standard, Threaded, Audio
         self.add_param("Sample Rate", 100.0)         # Only for Threaded/Audio modes
         self.add_param("Buffer Size", 256)          # Only for Audio mode
-        
+        self.add_param("MaskIconPath", "")           # Optional custom icon; drawn by UIBlock.paint()
+
+        self._feedthrough_cache_key = None
+        self._feedthrough_cache = {}
+
         self._update_label()
+
+    def _refresh_feedthrough_cache(self):
+        key = (str(self.internal_blocks_data), str(self.internal_connections_data))
+        if key != self._feedthrough_cache_key:
+            self._feedthrough_cache = feedthrough_pairs(
+                self.internal_blocks_data, self.internal_connections_data
+            )
+            self._feedthrough_cache_key = key
+        return self._feedthrough_cache
+
+    def feedthrough_pairs(self):
+        """Precise per-(input,output)-pair feedthrough (see
+        _feedthrough_utils.py): only the specific external input/output
+        pairs with a feedthrough-only internal path are reported, instead
+        of an all-or-nothing block-wide flag. A single unrelated
+        feedthrough output (e.g. a diagnostic tap straight off a
+        controller, unused anywhere) used to make EVERY input look coupled
+        to EVERY output under the default all-or-nothing has_direct_feedthrough
+        boolean, which caused real false-positive algebraic-loop errors.
+        """
+        return self._refresh_feedthrough_cache()
+
+    @property
+    def has_direct_feedthrough(self):
+        """Whether ANY external output could depend on ANY external input
+        within the same step. Kept for callers checking the coarse flag --
+        True only if at least one internal InputPort has a feedthrough-only
+        path to an internal OutputPort. A static, unconditional True here
+        was a real bug: it flagged the common case of a feedback loop
+        closed through a subsystem's own internal dynamics (an Integrator,
+        Delay, or strictly-proper TransferFunction/StateSpace one level
+        down) as an unresolvable algebraic loop, even though the loop was
+        actually well broken. topological_sort itself uses the more
+        precise feedthrough_pairs() above, not this coarse flag.
+        """
+        return any(self._refresh_feedthrough_cache().values())
 
     def _update_label(self):
         """Formats the name to show Type on top, Name below, and Mode if not Standard."""
@@ -376,10 +417,11 @@ class SubGraph(BlockModel):
 
     def get_editor_dialog(self, parent=None):
         """Custom dialog to edit SubGraph parameters and variables."""
-        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
-                                       QTableWidget, QTableWidgetItem, 
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+                                       QTableWidget, QTableWidgetItem,
                                        QPushButton, QLabel, QLineEdit, QComboBox,
-                                       QDialogButtonBox, QHeaderView, QWidget, QMessageBox)
+                                       QDialogButtonBox, QHeaderView, QWidget, QMessageBox,
+                                       QFileDialog)
         from PySide6.QtCore import Qt
 
         dialog = QDialog(parent)
@@ -431,7 +473,34 @@ class SubGraph(BlockModel):
             
         mode_combo.currentTextChanged.connect(update_visibility)
         update_visibility(current_mode)
-        
+
+        # Mask Icon (optional custom icon shown on the block instead of the
+        # generic title text -- see UIBlock.paint()'s MaskIconPath hook)
+        icon_layout = QHBoxLayout()
+        icon_layout.addWidget(QLabel("Mask Icon:"))
+        icon_edit = QLineEdit(self.params.get("MaskIconPath", ""))
+        icon_edit.setReadOnly(True)
+        icon_layout.addWidget(icon_edit)
+        btn_choose_icon = QPushButton("Choose...")
+        btn_clear_icon = QPushButton("Clear")
+        icon_layout.addWidget(btn_choose_icon)
+        icon_layout.addWidget(btn_clear_icon)
+        form_layout.addLayout(icon_layout)
+
+        def on_choose_icon():
+            path, _ = QFileDialog.getOpenFileName(
+                dialog, "Choose Mask Icon", "",
+                "Images (*.png *.jpg *.jpeg *.svg *.bmp)"
+            )
+            if path:
+                icon_edit.setText(path)
+
+        def on_clear_icon():
+            icon_edit.setText("")
+
+        btn_choose_icon.clicked.connect(on_choose_icon)
+        btn_clear_icon.clicked.connect(on_clear_icon)
+
         layout.addLayout(form_layout)
         
         # --- Section 2: Variables ---
@@ -451,7 +520,7 @@ class SubGraph(BlockModel):
             table.setItem(row, 1, QTableWidgetItem(str(val)))
             
         # Populate
-        reserved = ["BlockName", "Execution Mode", "Sample Rate", "Buffer Size"]
+        reserved = ["BlockName", "Execution Mode", "Sample Rate", "Buffer Size", "MaskIconPath"]
         for k, v in self.params.items():
             if k in reserved: continue
             add_row(k, v)
@@ -502,7 +571,9 @@ class SubGraph(BlockModel):
                 new_params["Buffer Size"] = val_bs
             except:
                 new_params["Buffer Size"] = 1024
-            
+
+            new_params["MaskIconPath"] = icon_edit.text().strip()
+
             for i in range(table.rowCount()):
                 key_item = table.item(i, 0)
                 val_item = table.item(i, 1)

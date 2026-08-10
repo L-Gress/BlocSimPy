@@ -17,12 +17,6 @@ class TransferFunction(BlockModel):
         "category": "Signal"
     }
 
-    # The D term (direct feedthrough) means this step's output can depend on
-    # this step's input even when D == 0 for the currently configured
-    # coefficients, so this stays conservative (True) rather than being
-    # derived from the live D value.
-    has_direct_feedthrough = True
-
     def __init__(self):
         super().__init__("TransferFunction")
         self.add_input("in")
@@ -84,6 +78,23 @@ class TransferFunction(BlockModel):
         if current_params != self._cache_key:
             self._update_matrices()
             self._cache_key = current_params
+
+    @property
+    def has_direct_feedthrough(self):
+        """Whether this step's output depends on this step's own input,
+        i.e. whether D != 0 for the currently configured coefficients.
+        A strictly proper transfer function (D == 0 -- e.g. this block's
+        own default, 1/(s+1)) has NO direct feedthrough: its output only
+        depends on internal state, exactly like Integrator/Delay, so a
+        feedback loop closed through one is well-defined and must NOT be
+        flagged as an algebraic loop. Computed live (not a fixed class
+        attribute) so it tracks whatever coefficients are configured --
+        a static True here was a real bug: it flagged the extremely common
+        case of closing a loop through a strictly-proper TF as an
+        unresolvable algebraic loop.
+        """
+        self._refresh_matrices_if_needed()
+        return self._D != 0
 
     def _derivatives_for(self, u, states):
         """Pure: d(states)/dt at the given state vector, given input u."""

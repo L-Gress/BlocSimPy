@@ -40,6 +40,7 @@ from .quantizer import Quantizer
 from .backlash import Backlash
 from .state_space import StateSpace
 from .discrete_transfer_function import DiscreteTransferFunction
+from .python_function import PythonFunction
 
 BLOCK_REGISTRY = {
     "SineWave": SineWave,
@@ -84,4 +85,5 @@ BLOCK_REGISTRY = {
     "Backlash": Backlash,
     "StateSpace": StateSpace,
     "DiscreteTransferFunction": DiscreteTransferFunction,
+    "PythonFunction": PythonFunction,
 }

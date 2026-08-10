@@ -21,9 +21,6 @@ class StateSpace(BlockModel):
         "category": "Signal"
     }
 
-    # The D term means this step's output can depend on this step's input.
-    has_direct_feedthrough = True
-
     def __init__(self):
         super().__init__("StateSpace")
         self.add_input("in")
@@ -48,6 +45,15 @@ class StateSpace(BlockModel):
         if current != self._cache_key:
             self._update_matrices()
             self._cache_key = current
+
+    @property
+    def has_direct_feedthrough(self):
+        """Live, not a fixed class attribute -- see TransferFunction's
+        identical property for the full rationale. D == 0 (this block's own
+        default) means no direct feedthrough, so a loop closed through it
+        is well-defined and must not be flagged as an algebraic loop."""
+        self._refresh_matrices_if_needed()
+        return self._D != 0
 
     def _update_matrices(self):
         A_raw = self.params.get("A", [[-1.0]])

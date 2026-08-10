@@ -7,13 +7,22 @@ class GraphSerializer:
     """Handles serialization and deserialization of block diagrams."""
     
     @staticmethod
-    def serialize_graph(blocks_ui: List[Any]) -> Dict[str, Any]:
+    def serialize_graph(blocks_ui: List[Any], annotations_ui: List[Any] = None,
+                         sim_params: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Serialize a graph to a dictionary.
-        
+
         Args:
             blocks_ui: List of UIBlock objects
-            
+            annotations_ui: Optional list of UIAnnotation objects (free-text
+                canvas notes, not attached to any block). Omitted/None
+                produces no "annotations" key, so old save files and any
+                caller not touching annotations are unaffected.
+            sim_params: Optional dict of simulation settings (duration, dt,
+                solver -- see ToolbarManager). Omitted/None produces no
+                "simulation" key, same backward-compatibility rationale as
+                annotations_ui above.
+
         Returns:
             Dictionary representing the graph
         """
@@ -21,6 +30,15 @@ class GraphSerializer:
             "blocks": [],
             "connections": []
         }
+
+        if annotations_ui:
+            data["annotations"] = [
+                {"text": a.toPlainText(), "x": a.pos().x(), "y": a.pos().y()}
+                for a in annotations_ui
+            ]
+
+        if sim_params:
+            data["simulation"] = dict(sim_params)
         
         # Serialize blocks
         for ui_block in blocks_ui:
@@ -124,3 +142,34 @@ class GraphSerializer:
                 })
         
         return block_models, connections_data
+
+    @staticmethod
+    def deserialize_annotations(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Extract free-text canvas annotations from a serialized graph.
+
+        Kept separate from deserialize_graph (rather than added as a third
+        tuple element) so existing `blocks, connections = deserialize_graph(...)`
+        call sites don't all need updating -- annotations are plain dicts
+        (no Qt, no id_map/connection wiring needed), so building them is a
+        GUI-layer concern (constructing a UIAnnotation per entry).
+        """
+        annotations = []
+        for entry in data.get("annotations", []):
+            annotations.append({
+                "text": entry.get("text", ""),
+                "x": entry.get("x", 0.0),
+                "y": entry.get("y", 0.0),
+            })
+        return annotations
+
+    @staticmethod
+    def deserialize_simulation_params(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract simulation settings (duration, dt, solver) from a serialized
+        graph. Returns an empty dict if the file predates this (or the
+        caller didn't pass sim_params to serialize_graph) -- callers should
+        only apply values that are actually present, leaving whatever the
+        UI currently has untouched otherwise.
+        """
+        return dict(data.get("simulation", {}))

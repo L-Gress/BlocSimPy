@@ -4,14 +4,13 @@ All scope-related features are contained in this single file.
 """
 
 from ..models import BlockModel
+import csv
 import numpy as np
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QSpinBox, QGroupBox, QTabWidget, QWidget, QCheckBox
+    QSpinBox, QGroupBox, QTabWidget, QWidget, QCheckBox, QFileDialog, QMessageBox
 )
 from PySide6.QtCore import Qt
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
-from matplotlib.figure import Figure
 
 
 class ScopeDialog(QDialog):
@@ -85,82 +84,22 @@ class ScopeDialog(QDialog):
         # --- Data Viewer Tab ---
         viewer_tab = QWidget()
         viewer_layout = QVBoxLayout(viewer_tab)
-        
+
         # Get data from scope
         time_array, data_dict = self.scope_block.get_data_arrays()
-        
-        # Create matplotlib figure
-        fig = Figure(figsize=(12, 7), dpi=100)
-        canvas = FigureCanvasQTAgg(fig)
-        
-        # Add navigation toolbar (zoom, pan, save, etc.)
-        toolbar = NavigationToolbar2QT(canvas, viewer_tab)
-        toolbar.setStyleSheet("QToolBar { spacing: 5px; padding: 5px; }")
-        
-        # Create plot
-        ax = fig.add_subplot(111)
-        
-        if len(time_array) > 0 and data_dict:
-            # Color palette for multiple signals
-            colors = [
-                '#2E86AB', '#A23B72', '#F18F01', '#C73E1D', 
-                '#6A994E', '#BC4B51', '#4A5899', '#8E3B46',
-                '#118AB2', '#EF476F', '#06D6A0', '#FFD166'
-            ]
-            
-            # Plot each input
-            for idx, (input_name, data_array) in enumerate(data_dict.items()):
-                if len(data_array) > 0:
-                    color = colors[idx % len(colors)]
-                    ax.plot(time_array, data_array, label=input_name,
-                           color=color, linewidth=2, alpha=0.85)
-            
-            # Styling
-            ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
-            ax.set_xlabel("Time (s)", fontsize=12, fontweight='bold')
-            ax.set_ylabel("Signal Value", fontsize=12, fontweight='bold')
-            ax.set_title("Scope Output", fontsize=14, fontweight='bold', pad=15)
-            
-            if len(data_dict) > 1:
-                ax.legend(loc='best', framealpha=0.95, edgecolor='gray', 
-                         fancybox=True, shadow=True)
-            
-            ax.margins(x=0.01, y=0.05)
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            
-        else:
-            # No data available
-            ax.text(0.5, 0.5, 
-                   "📊 No Data Available\n\nRun the simulation first to see results",
-                   ha='center', va='center', fontsize=14, color='#999',
-                   transform=ax.transAxes, weight='bold')
-            ax.set_xlim(0, 1)
-            ax.set_ylim(0, 1)
-            ax.axis('off')
-        
-        fig.tight_layout()
-        
-        # Info panel
-        info_layout = QHBoxLayout()
-        
-        # Statistics
-        if len(time_array) > 0:
-            duration = time_array[-1] if len(time_array) > 0 else 0
-            info_text = f"📊 {len(data_dict)} signal(s) | {len(time_array)} samples | Duration: {duration:.3f}s"
-        else:
-            info_text = "📊 No data - run simulation to see results"
-        
-        info_label = QLabel(info_text)
-        info_label.setStyleSheet("font-weight: bold; color: #2E86AB; font-size: 10pt;")
-        info_layout.addWidget(info_label)
-        info_layout.addStretch()
-        
-        # Add widgets to viewer layout
-        viewer_layout.addWidget(toolbar)
-        viewer_layout.addWidget(canvas)
-        viewer_layout.addLayout(info_layout)
-        
+
+        from gui.widgets import SignalPlotWidget
+        plot = SignalPlotWidget(title="Scope Output", parent=viewer_tab)
+        plot.set_series({name: (time_array, arr) for name, arr in data_dict.items()})
+        viewer_layout.addWidget(plot)
+
+        export_btn = QPushButton("⬇ Export CSV")
+        export_btn.clicked.connect(self._export_csv)
+        export_row = QHBoxLayout()
+        export_row.addWidget(export_btn)
+        export_row.addStretch()
+        viewer_layout.addLayout(export_row)
+
         tabs.addTab(viewer_tab, "📊 Data Viewer")
         
         # Add tabs to main layout
@@ -177,6 +116,25 @@ class ScopeDialog(QDialog):
         
         layout.addLayout(button_layout)
     
+    def _export_csv(self):
+        """Export recorded data as CSV via export_csv_rows() (pure/Qt-free, see Scope)."""
+        rows = self.scope_block.export_csv_rows()
+        if len(rows) <= 1:
+            QMessageBox.information(self, "No Data", "Run the simulation first to have data to export.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Scope Data", "", "CSV Files (*.csv)")
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerows(rows)
+            QMessageBox.information(self, "Export Complete", f"Saved to {file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Failed", str(e))
+
     def _apply_config(self):
         """Apply configuration changes to the scope block."""
         new_num_inputs = self.num_inputs_spin.value()
@@ -291,7 +249,25 @@ class Scope(BlockModel):
             data_dict[input_name] = np.array(values) if values else np.array([])
         
         return time_array, data_dict
-    
+
+    def export_csv_rows(self):
+        """Build CSV rows (header + data, one row per timestep) from recorded
+        data: [time, in1, in2, ...]. Pure/Qt-free (mirrors get_data_arrays())
+        so it's directly unit-testable without a QApplication; the dialog's
+        Export CSV button just writes these rows with the stdlib csv module.
+        """
+        time_array, data_dict = self.get_data_arrays()
+        names = list(data_dict.keys())
+
+        rows = [["time"] + names]
+        for i, t in enumerate(time_array):
+            row = [t]
+            for name in names:
+                arr = data_dict[name]
+                row.append(arr[i] if i < len(arr) else "")
+            rows.append(row)
+        return rows
+
     def get_editor_dialog(self, parent=None):
         """
         Return unified Scope dialog for both configuration and data viewing.
