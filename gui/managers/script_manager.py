@@ -1,29 +1,33 @@
 """Manages user scripts and execution environment."""
-import os
 from PySide6.QtWidgets import QMessageBox
 
 class ScriptManager:
     """Manages user scripts and provides execution context."""
-    
+
     def __init__(self, main_window):
         self.main_window = main_window
-        self.current_script = (
-            "# BlocSimPy Scripting Interface\n"
-            "# -----------------------------\n"
-            "# Available functions:\n"
-            "#   set_param(block_name, param_name, value)\n"
-            "#   run_simulation()\n"
-            "#   print(text)\n\n"
-            "print('Hello from BlocSimPy!')\n"
-        )
-        
-    def show_editor(self):
-        """Show the script editor dialog."""
-        # Use absolute import matching the new cleanup
-        from ..dialogs import ScriptEditorDialog
-        dialog = ScriptEditorDialog(self.main_window, self)
-        dialog.exec()
-        
+
+    def open_script(self, file_path):
+        """Open a Script from User Space as its own tab in the main
+        window's central area (not a separate dialog) -- bound to its
+        file so Save writes straight back to it. Multiple Scripts can be
+        open at once, each in its own tab; re-opening one that's already
+        open just switches to its existing tab (open_script_tab() only
+        calls make_widget(), and so only reads the file, when a new tab
+        actually needs to be built). Connected to
+        UserSpaceWidget.script_open_requested (double-click / New Script)."""
+        from ..dialogs import ScriptEditorWidget
+
+        def make_widget():
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return ScriptEditorWidget(self.main_window, self, file_path, content)
+
+        try:
+            self.main_window.open_script_tab(file_path, make_widget)
+        except Exception as e:
+            QMessageBox.critical(self.main_window, "Error", f"Failed to open script: {e}")
+
     def execute_script(self, script_content):
         """
         Execute the provided script content with access to the simulation environment.

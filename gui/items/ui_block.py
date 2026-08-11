@@ -249,12 +249,15 @@ class UIBlock(QGraphicsItem):
             else:
                 scene = self.scene()
                 if scene:
-                    views = scene.views()
-                    if views:
-                        main_window = views[0].parent() 
-                        if hasattr(main_window, "enter_subsystem"):
-                            main_window.enter_subsystem(self)
-                            return
+                    # scene.parent() (not scene.views()[0].parent()) --
+                    # NodeScene(main_window) sets this directly at
+                    # construction, independent of widget-tree reparenting
+                    # (e.g. into central_tabs' internal QStackedWidget),
+                    # which broke the views()[0]-based lookup.
+                    main_window = scene.parent()
+                    if hasattr(main_window, "enter_subsystem"):
+                        main_window.enter_subsystem(self)
+                        return
 
         # Open parameter editor if available
         if hasattr(self.model, 'get_editor_dialog'):
@@ -272,11 +275,9 @@ class UIBlock(QGraphicsItem):
                 # or nothing actually changed.
                 scene = self.scene()
                 if scene:
-                    views = scene.views()
-                    if views:
-                        main_window = views[0].parent()
-                        if hasattr(main_window, 'scene_manager'):
-                            main_window.scene_manager.take_snapshot()
+                    main_window = scene.parent()
+                    if hasattr(main_window, 'scene_manager'):
+                        main_window.scene_manager.take_snapshot()
 
         super().mouseDoubleClickEvent(event)
 

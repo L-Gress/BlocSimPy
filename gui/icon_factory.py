@@ -54,6 +54,16 @@ def _draw_open(p):
     p.drawRoundedRect(QRectF(3, 9.5, 18, 9.5), 2, 2)
 
 
+@_register("project")
+def _draw_project(p):
+    # Same folder glyph as "open", plus an accent badge -- distinguishes
+    # "switch the whole Project Folder" from "open a single file".
+    _draw_open(p)
+    p.setPen(Qt.NoPen)
+    p.setBrush(_ACCENT)
+    p.drawEllipse(QPointF(18.3, 17.5), 3.0, 3.0)
+
+
 @_register("save")
 def _draw_save(p):
     p.setPen(_pen())

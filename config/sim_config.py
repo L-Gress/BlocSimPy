@@ -13,6 +13,3 @@ class SimConfig:
     MAX_TIMESTEP = 1.0
     MIN_DURATION = 0.001
     MAX_DURATION = 1e6
-    
-    # Library
-    LIBRARY_ROOT = "user_library"

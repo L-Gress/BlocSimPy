@@ -62,12 +62,9 @@ class BlockContextMenu:
                     BlockContextMenu._take_snapshot(scene)
         elif selected_action == action_enter:
             # Logic to enter subsystem
-            views = scene.views()
-            if views:
-                # Assuming the main window is the parent of the view
-                main_window = views[0].parent()
-                if hasattr(main_window, "enter_subsystem"):
-                    main_window.enter_subsystem(block_ui)
+            main_window = scene.parent()
+            if hasattr(main_window, "enter_subsystem"):
+                main_window.enter_subsystem(block_ui)
     
     @staticmethod
     def rename_block(block_ui):
@@ -100,8 +97,6 @@ class BlockContextMenu:
         """Record an undo snapshot after a menu action that edited the model
         in place (rename, parameter edit) -- take_snapshot() dedups against
         the last state, so this is a no-op if nothing actually changed."""
-        views = scene.views()
-        if views:
-            main_window = views[0].parent()
-            if hasattr(main_window, "scene_manager"):
-                main_window.scene_manager.take_snapshot()
+        main_window = scene.parent()
+        if hasattr(main_window, "scene_manager"):
+            main_window.scene_manager.take_snapshot()

@@ -11,17 +11,31 @@ from PySide6.QtGui import QTextDocument
 # have to carry help-text concerns that are unrelated to building the menu.
 TOOLBAR_HELP = [
     ("File", [
-        ("action_new", "Start a new, empty diagram. If the current one has unsaved "
-                        "changes, you'll be asked whether to save them first."),
+        ("action_open_project", "Open (or switch to) a Project Folder -- any folder "
+                                 "anywhere on disk. Everything the app saves (Diagrams, "
+                                 "SubGraphs, Scripts) lives directly in it, no imposed "
+                                 "subfolders, shown together in the User Space tab. No "
+                                 "project is opened automatically -- BlocSimPy starts "
+                                 "with none open every launch, and this is the only way "
+                                 "in. Switching asks to save unsaved changes in every "
+                                 "open diagram, then closes them all -- a different "
+                                 "project's diagrams aren't part of this one."),
+        ("action_new", "Open a fresh, empty diagram in its own new tab -- your other "
+                        "open diagrams are untouched."),
         ("action_load", "Open a previously saved diagram (a .json file) from disk, "
-                         "replacing what's currently on the canvas."),
-        ("action_save", "Save the diagram. Writes to the file it was opened from (or "
-                         "last saved to); if it doesn't have one yet, this behaves "
-                         "like Save As."),
-        ("action_save_as", "Save the diagram to a new file, and make that file the "
-                            "diagram's file going forward."),
-        ("action_quit", "Close BlocSimPy. If there are unsaved changes, you'll be "
-                         "asked whether to save them first."),
+                         "in its own new tab (or switching to it if it's already "
+                         "open) -- your other open diagrams are untouched. Starts "
+                         "browsing from the current project folder. Menu-only -- for "
+                         "a diagram already in the current project, double-clicking "
+                         "it in User Space &rarr; Diagrams is quicker."),
+        ("action_save", "Save the active diagram tab. Writes to the file it was "
+                         "opened from (or last saved to); if it doesn't have one "
+                         "yet, this behaves like Save As."),
+        ("action_save_as", "Save the active diagram tab to a new file, and make that "
+                            "file its file going forward. Starts browsing from the "
+                            "current project folder."),
+        ("action_quit", "Close BlocSimPy. If any open diagram or Script has unsaved "
+                         "changes, you'll be asked whether to save them first."),
     ]),
     ("Edit", [
         ("action_undo", "Undo the most recent change -- adding, moving, or deleting "
@@ -50,7 +64,8 @@ TOOLBAR_HELP = [
                              "(anchored under the cursor) and pan by dragging with "
                              "the middle mouse button."),
         ("action_toggle_lib", "Show or hide the Library dock on the left -- the "
-                               "block palette and your User Library."),
+                               "block palette and User Space (the current project "
+                               "folder's Diagrams, SubGraphs, and Scripts)."),
     ]),
     ("Simulation", [
         ("action_sim_settings", "Choose the simulation's duration, time step, and "
@@ -61,21 +76,21 @@ TOOLBAR_HELP = [
                         "unconnected inputs (a warning, since they read as 0.0) -- "
                         "before anything executes. The run itself happens on a "
                         "background thread with a cancellable progress bar, so the "
-                        "window stays responsive even for long simulations."),
-        ("action_inspector", "Open the Data Inspector, showing every Scope block's "
-                              "recorded data from the most recent run side by side."),
+                        "window stays responsive even for long simulations. Each "
+                        "successful run opens its results in a new 'Simulation N' "
+                        "tab, so re-running with different parameters lets you flip "
+                        "between runs instead of only ever seeing the latest."),
+        ("action_inspector", "Bring the most recent run's results tab to the front, "
+                              "reopening it if it was closed."),
     ]),
     ("Navigation", [
         ("action_up", "Step back out of the SubGraph you're currently editing, "
                        "returning to its parent diagram."),
     ]),
-    ("Tools & Library", [
+    ("Tools", [
         ("action_save_subgraph", "Save the selected SubGraph block as a named, "
-                                  "reusable component in your User Library, so it "
-                                  "can be dragged into other diagrams later."),
-        ("action_scripts", "Open the Script Editor to write and run custom Python "
-                            "code against the current diagram (e.g. batch edits, "
-                            "or driving the PythonFunction block)."),
+                                  "reusable component in User Space, so it can be "
+                                  "dragged into other diagrams later."),
     ]),
     ("Help", [
         ("action_help", "Open this Help window."),
@@ -147,6 +162,30 @@ class HelpDialog(QDialog):
             "SubGraph to step inside it; double-click a Scope after running to see "
             "its data. Everything below is also reachable from the menu bar, with "
             "the same keyboard shortcuts.</p>"
+            "<p style='color: #3a3a3c;'>The central area is a proper multi-page "
+            "workspace, like a code editor's tab bar: every Diagram, Script, and "
+            "simulation run gets its own tab, and they all stay open side by side "
+            "instead of one replacing another. Open as many diagrams as you like at "
+            "once (<b>File &rarr; New</b> or <b>Open...</b>, or double-click one in "
+            "User Space &rarr; Diagrams) -- toolbar actions like Save, Undo, and Run "
+            "always act on whichever diagram tab is currently active. Same for "
+            "Scripts: open several at once, each keeping its own unsaved-edits state, "
+            "marked with a <b>&bull;</b> on its tab. Every successful <b>Run</b> adds "
+            "a new <b>Simulation N</b> tab so you can compare multiple runs' results "
+            "side by side. Click a tab's <b>&times;</b> to close it (Diagrams and "
+            "Scripts confirm first if unsaved) -- closing the last open diagram "
+            "immediately opens a fresh blank one, so there's always at least one.</p>"
+            "<p style='color: #3a3a3c;'>Everything BlocSimPy saves lives directly in "
+            "the current <b>Project Folder</b> (<b>File &rarr; Open Project "
+            "Folder...</b>) -- any folder anywhere on disk, no imposed subfolders. "
+            "The <b>User Space</b> tab next to Library groups that one folder's "
+            "contents into <b>Diagrams</b> (double-click to open), <b>SubGraphs</b>, "
+            "and <b>Scripts</b>. Right-click the Scripts group for <b>New Script</b>, "
+            "or double-click an existing one to open its Script Editor tab -- Save "
+            "always writes straight back to that file, and Run executes it with "
+            "access to <code>set_param()</code>, <code>run_simulation()</code>, "
+            "<code>get_blocks()</code>, and <code>get_block_info()</code> against "
+            "the current diagram.</p>"
         )
 
         if toolbar_manager is None:

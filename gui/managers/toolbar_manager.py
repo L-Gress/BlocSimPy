@@ -7,7 +7,7 @@ places (toolbar + menu) instead of two independent copies that could drift.
 from PySide6.QtWidgets import QToolBar, QMessageBox, QProgressDialog
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt, QThread
-from ..dialogs import SimulationSettingsDialog, DiagramCheckDialog, DataInspectorDialog, AboutDialog
+from ..dialogs import SimulationSettingsDialog, DiagramCheckDialog, AboutDialog
 from ..workers import SimulationWorker
 from .. import icon_factory
 from engine.simulation import SimulationEngine
@@ -40,51 +40,77 @@ class ToolbarManager:
         return action
 
     def create_toolbar(self):
-        """Create every QAction, wire it up, and lay them out on the toolbar."""
-        sm = self.main_window.scene_manager
+        """Create every QAction, wire it up, and lay them out on the
+        toolbar. Every action that acts on a diagram is wired via a lambda
+        that reads `self.main_window.scene_manager` fresh at click time --
+        it's a property pointing at whichever diagram tab is currently
+        active (see MainWindow), so binding directly to e.g.
+        `main_window.scene_manager.save_graph` here would permanently
+        capture whichever diagram happened to be active when the toolbar
+        was built (there being none yet, in fact -- this runs before the
+        first diagram tab exists)."""
+        mw = self.main_window
 
         # --- File ---
-        self.action_new = self._make_action("New", sm.new_graph, QKeySequence.New, "new")
-        self.action_load = self._make_action("Open...", sm.load_graph, QKeySequence.Open, "open")
-        self.action_save = self._make_action("Save", sm.save_graph, QKeySequence.Save, "save")
+        self.action_open_project = self._make_action(
+            "Open Project Folder...", mw.project_manager.open_project_dialog,
+            None, "project"
+        )
+        self.action_new = self._make_action(
+            "New", lambda: mw.open_diagram_tab(), QKeySequence.New, "new"
+        )
+        self.action_load = self._make_action(
+            "Open...", lambda: mw.open_diagram_dialog(), QKeySequence.Open, "open"
+        )
+        self.action_save = self._make_action(
+            "Save", lambda: mw.scene_manager.save_graph(), QKeySequence.Save, "save"
+        )
         self.action_save_as = self._make_action(
-            "Save As...", sm.save_graph_as, QKeySequence.SaveAs, "save_as"
+            "Save As...", lambda: mw.scene_manager.save_graph_as(), QKeySequence.SaveAs, "save_as"
         )
         self.action_quit = self._make_action(
-            "Exit", self.main_window.close, QKeySequence.Quit, "quit"
+            "Exit", mw.close, QKeySequence.Quit, "quit"
         )
 
         # --- Edit ---
         self.action_undo = self._make_action(
-            "Undo", sm.undo_manager.undo, QKeySequence.Undo, "undo"
+            "Undo", lambda: mw.scene_manager.undo_manager.undo(), QKeySequence.Undo, "undo"
         )
-        self.action_redo = self._make_action("Redo", sm.undo_manager.redo, None, "redo")
+        self.action_redo = self._make_action(
+            "Redo", lambda: mw.scene_manager.undo_manager.redo(), None, "redo"
+        )
         self.action_redo.setShortcuts([QKeySequence.Redo, QKeySequence("Ctrl+Y")])
-        self.action_cut = self._make_action("Cut", sm.cut_selection, QKeySequence.Cut, "cut")
-        self.action_copy = self._make_action("Copy", sm.copy_selection, QKeySequence.Copy, "copy")
-        self.action_paste = self._make_action("Paste", sm.paste_selection, QKeySequence.Paste, "paste")
+        self.action_cut = self._make_action(
+            "Cut", lambda: mw.scene_manager.cut_selection(), QKeySequence.Cut, "cut"
+        )
+        self.action_copy = self._make_action(
+            "Copy", lambda: mw.scene_manager.copy_selection(), QKeySequence.Copy, "copy"
+        )
+        self.action_paste = self._make_action(
+            "Paste", lambda: mw.scene_manager.paste_selection(), QKeySequence.Paste, "paste"
+        )
         self.action_select_all = self._make_action(
-            "Select All", lambda: self.main_window.scene.select_all(), QKeySequence.SelectAll, "select_all"
+            "Select All", lambda: mw.scene.select_all(), QKeySequence.SelectAll, "select_all"
         )
         self.action_delete = self._make_action(
-            "Delete", lambda: self.main_window.scene.delete_selected(), QKeySequence.Delete, "delete"
+            "Delete", lambda: mw.scene.delete_selected(), QKeySequence.Delete, "delete"
         )
         self.action_duplicate = self._make_action(
-            "Duplicate", sm.duplicate_selection, QKeySequence("Ctrl+D"), "duplicate"
+            "Duplicate", lambda: mw.scene_manager.duplicate_selection(), QKeySequence("Ctrl+D"), "duplicate"
         )
         self.action_rename = self._make_action(
-            "Rename", sm.rename_selected, QKeySequence("F2"), "rename"
+            "Rename", lambda: mw.scene_manager.rename_selected(), QKeySequence("F2"), "rename"
         )
 
         # --- View / Zoom ---
         self.action_zoom_in = self._make_action(
-            "Zoom In", lambda: self.main_window.view.zoom_in(), QKeySequence("Ctrl+="), "zoom_in"
+            "Zoom In", lambda: mw.view.zoom_in(), QKeySequence("Ctrl+="), "zoom_in"
         )
         self.action_zoom_out = self._make_action(
-            "Zoom Out", lambda: self.main_window.view.zoom_out(), QKeySequence("Ctrl+-"), "zoom_out"
+            "Zoom Out", lambda: mw.view.zoom_out(), QKeySequence("Ctrl+-"), "zoom_out"
         )
         self.action_zoom_fit = self._make_action(
-            "Zoom to Fit", lambda: self.main_window.view.zoom_to_fit(), QKeySequence("Ctrl+0"), "zoom_fit"
+            "Zoom to Fit", lambda: mw.view.zoom_to_fit(), QKeySequence("Ctrl+0"), "zoom_fit"
         )
 
         # --- Simulation ---
@@ -97,17 +123,16 @@ class ToolbarManager:
         )
 
         # --- Subsystem navigation ---
-        self.action_up = self._make_action("Go Up", sm.go_up_level, None, "up")
+        self.action_up = self._make_action(
+            "Go Up", lambda: mw.scene_manager.go_up_level(), None, "up"
+        )
 
         # --- Library ---
         self.action_save_subgraph = self._make_action(
-            "Save SubGraph", sm.save_selected_subgraph_to_library, None, "subgraph"
+            "Save SubGraph", lambda: mw.scene_manager.save_selected_subgraph_to_library(), None, "subgraph"
         )
         self.action_toggle_lib = self._make_action(
-            "Toggle Library", self.main_window.dock_manager.toggle_library
-        )
-        self.action_scripts = self._make_action(
-            "User Scripts", self.main_window.script_manager.show_editor, None, "scripts"
+            "Toggle Library", mw.dock_manager.toggle_library
         )
 
         # --- Help ---
@@ -119,12 +144,20 @@ class ToolbarManager:
         )
 
         self.toolbar = QToolBar("Main Toolbar")
+        self.toolbar.setObjectName("main_toolbar")  # required by QMainWindow.saveState()/restoreState()
         self.toolbar.setMovable(False)
 
         for action in (self.action_sim_settings, self.action_run, self.action_inspector):
             self.toolbar.addAction(action)
         self.toolbar.addSeparator()
-        for action in (self.action_new, self.action_save, self.action_load, self.action_save_as):
+        self.toolbar.addAction(self.action_open_project)
+        self.toolbar.addSeparator()
+        # action_load ("Open...") is intentionally not on the toolbar --
+        # opening a diagram is now naturally reached through User Space
+        # (Open Project Folder -> double-click a Diagram), not a generic
+        # file-open button. It's still in the File menu for the rare case
+        # of opening a diagram from outside the current project folder.
+        for action in (self.action_new, self.action_save, self.action_save_as):
             self.toolbar.addAction(action)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.action_undo)
@@ -135,12 +168,32 @@ class ToolbarManager:
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.action_up)
         self.toolbar.addSeparator()
-        for action in (self.action_save_subgraph, self.action_toggle_lib, self.action_scripts):
+        for action in (self.action_save_subgraph, self.action_toggle_lib):
             self.toolbar.addAction(action)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.action_help)
 
         return self.toolbar
+
+    def set_diagram_actions_enabled(self, enabled):
+        """Enable/disable every action that needs an active diagram tab to
+        act on. The app can briefly have zero diagram tabs open -- right
+        at startup, before New/Open/User-Space creates the first one --
+        so these start disabled rather than crashing (or silently doing
+        nothing) if clicked in that window. Once any diagram has been
+        opened this session, MainWindow's "always keep at least one tab
+        open" rule means it never goes back to zero, so this only ever
+        runs disabled->enabled in practice."""
+        for action in (
+            self.action_save, self.action_save_as,
+            self.action_undo, self.action_redo,
+            self.action_cut, self.action_copy, self.action_paste,
+            self.action_select_all, self.action_delete,
+            self.action_duplicate, self.action_rename,
+            self.action_zoom_in, self.action_zoom_out, self.action_zoom_fit,
+            self.action_up, self.action_save_subgraph, self.action_run,
+        ):
+            action.setEnabled(enabled)
 
     def _show_sim_settings(self):
         """Show simulation settings dialog."""
@@ -161,14 +214,19 @@ class ToolbarManager:
         AboutDialog(self.main_window).exec()
 
     def run_simulation(self):
-        """Validate the diagram, then run it on a background thread with a
-        cancellable progress dialog so long runs don't freeze the UI."""
-        if not self.main_window.scene_manager.blocks_ui:
-            QMessageBox.warning(self.main_window, "No Blocks", "Add blocks to the scene first.")
+        """Validate the active diagram, then run it on a background thread
+        with a cancellable progress dialog so long runs don't freeze the
+        UI."""
+        if hasattr(self.main_window, "show_diagram_editor"):
+            self.main_window.show_diagram_editor()
+
+        sm = self.main_window.scene_manager
+        if sm is None or not sm.blocks_ui:
+            self._status("Add blocks to the scene first.")
             return
 
         # Collect all block models
-        block_models = [ui_block.model for ui_block in self.main_window.scene_manager.blocks_ui]
+        block_models = [ui_block.model for ui_block in sm.blocks_ui]
 
         # "Update Diagram" pre-flight check: catch algebraic loops and
         # unconnected inputs before running, rather than failing mid-run
@@ -223,7 +281,7 @@ class ToolbarManager:
         self.action_run.setEnabled(True)
 
         if result.cancelled:
-            self.main_window.statusBar().showMessage("Simulation cancelled.", 5000)
+            self._status("Simulation cancelled.")
             return
 
         if not result.success:
@@ -232,20 +290,25 @@ class ToolbarManager:
 
         self.last_result = result
 
-        QMessageBox.information(
-            self.main_window,
-            "Simulation Completed",
-            "Simulation finished successfully.\n\n"
-            "Double-click any Scope block to view its data, "
-            "or use Data Inspector to see every Scope at once."
-        )
+        # A fresh tab per run (not a replacing dialog), so re-running with
+        # different parameters lets you flip between this and earlier
+        # runs' results instead of only ever seeing the latest.
+        if hasattr(self.main_window, "open_simulation_tab"):
+            self.main_window.open_simulation_tab(result)
+        self._status("Simulation finished.")
 
     def show_data_inspector(self):
-        """Open the Data Inspector for the most recent batch run's Scope data."""
+        """Bring the most recent run's results tab to front (Simulation
+        menu / toolbar), reopening it if it was closed."""
         if self.last_result is None or not self.last_result.scope_data:
-            QMessageBox.information(
-                self.main_window, "No Data",
-                "Run a simulation first to have data to inspect."
-            )
+            self._status("Run a simulation first to have data to inspect.")
             return
-        DataInspectorDialog(self.last_result, self.main_window).exec()
+        if hasattr(self.main_window, "focus_or_open_simulation_tab"):
+            self.main_window.focus_or_open_simulation_tab(self.last_result)
+
+    def _status(self, message):
+        """Routine, non-blocking confirmation shown in the status bar
+        instead of an interrupting QMessageBox.information() -- see
+        MainWindow.show_status()."""
+        if hasattr(self.main_window, "show_status"):
+            self.main_window.show_status(message)

@@ -1,21 +1,22 @@
-"""Data Inspector: view every Scope's recorded signal from the last
-simulation run in one place, without opening each Scope block individually.
+"""Embeddable simulation-results page: every Scope's recorded signal from
+one simulation run, shown together as a central-area tab (see
+MainWindow.open_simulation_tab()) rather than a modal dialog -- so
+multiple runs' results can stay open and be compared side by side instead
+of only the most recent being reachable.
 
 Reuses SimulationEngine.run()'s existing result.scope_data (already
 aggregated by the engine -- see engine/simulation/engine.py) rather than
 re-deriving it, and the same SignalPlotWidget ScopeDialog uses.
 """
 import csv
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                               QDialogButtonBox, QPushButton, QFileDialog, QMessageBox)
-from ..widgets import SignalPlotWidget
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                               QPushButton, QFileDialog, QMessageBox)
+from .signal_plot_widget import SignalPlotWidget
 
 
-class DataInspectorDialog(QDialog):
-    def __init__(self, result, parent=None):
+class SimulationResultWidget(QWidget):
+    def __init__(self, result, title="Simulation", parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Data Inspector")
-        self.resize(1000, 650)
 
         self._series = {
             name: (entry.get("time"), entry.get("data"))
@@ -24,15 +25,22 @@ class DataInspectorDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
+        header = QLabel(title)
+        header_font = header.font()
+        header_font.setBold(True)
+        header_font.setPointSize(12)
+        header.setFont(header_font)
+        layout.addWidget(header)
+
         info = QLabel(
-            "Shows each Scope's primary (first) input channel from the last run. "
+            "Shows each Scope's primary (first) input channel from this run. "
             "Double-click an individual Scope block to see all of its channels."
         )
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; font-size: 9pt;")
         layout.addWidget(info)
 
-        self.plot = SignalPlotWidget(title="Data Inspector", parent=self)
+        self.plot = SignalPlotWidget(title=title, parent=self)
         self.plot.set_series(self._series)
         layout.addWidget(self.plot)
 
@@ -41,13 +49,6 @@ class DataInspectorDialog(QDialog):
         export_btn.clicked.connect(self._export_csv)
         btn_layout.addWidget(export_btn)
         btn_layout.addStretch()
-
-        btns = QDialogButtonBox(QDialogButtonBox.Close)
-        btns.rejected.connect(self.accept)
-        close_btn = btns.button(QDialogButtonBox.Close)
-        if close_btn:
-            close_btn.clicked.connect(self.accept)
-        btn_layout.addWidget(btns)
         layout.addLayout(btn_layout)
 
     def _export_csv(self):
@@ -56,10 +57,10 @@ class DataInspectorDialog(QDialog):
         same simulation run, so they share one time base -- the shortest
         one is used if lengths ever differ, to stay in bounds."""
         if not self._series:
-            QMessageBox.information(self, "No Data", "Run the simulation first to have data to export.")
+            self._status("This run has no Scope data to export.")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export Data Inspector", "", "CSV Files (*.csv)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Simulation Results", "", "CSV Files (*.csv)")
         if not file_path:
             return
 
@@ -73,6 +74,15 @@ class DataInspectorDialog(QDialog):
                 writer.writerow(["Time"] + names)
                 for i in range(row_count):
                     writer.writerow([time_arr[i]] + [self._series[name][1][i] for name in names])
-            QMessageBox.information(self, "Export Complete", f"Saved to {file_path}")
+            self._status(f"Exported to {file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Export Failed", str(e))
+
+    def _status(self, message):
+        """Routine, non-blocking confirmation shown in the main window's
+        status bar instead of an interrupting QMessageBox.information() --
+        see MainWindow.show_status(). Safe now that this is an embedded
+        tab rather than a modal dialog (which would hide the status bar)."""
+        main_window = self.window()
+        if hasattr(main_window, "show_status"):
+            main_window.show_status(message)

@@ -1,30 +1,41 @@
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QTextEdit, 
-                               QHBoxLayout, QPushButton, QFileDialog)
+import os
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit, QHBoxLayout, QPushButton, QMessageBox
 
-class ScriptEditorDialog(QDialog):
-    """Dialog to edit and run Python scripts."""
-    
-    def __init__(self, parent, script_manager):
-        super().__init__(parent)
+
+class ScriptEditorWidget(QWidget):
+    """Edit and run a Script from User Space. Lives in its own tab in the
+    main window's central area (not a separate dialog window) -- multiple
+    Scripts can be open as separate tabs at once, see
+    MainWindow.open_script_tab()/update_script_tab_title(). Always bound
+    to the file it was opened from (created via
+    UserSpaceWidget.create_script(), or opened by double-clicking it in
+    the tree) -- Save writes straight back to that path, so scripts stay
+    organized in User Space rather than scattered wherever a native
+    file-save dialog last pointed."""
+
+    def __init__(self, main_window, script_manager, file_path, content):
+        super().__init__()
+        self.main_window = main_window
         self.script_manager = script_manager
-        self.setWindowTitle("User Scripts")
-        self.resize(800, 600)
-        
+        self.file_path = file_path
+
         layout = QVBoxLayout(self)
-        
+
         # Editor Area
         layout.addWidget(QLabel("Python Script:"))
-        
+
         # Use Monospace font
         font = self.font()
-        font.setFamily("Consolas") 
+        font.setFamily("Consolas")
         font.setPointSize(10)
-        
+
         self.editor = QTextEdit()
         self.editor.setFont(font)
-        self.editor.setPlainText(self.script_manager.current_script)
+        self.editor.setPlainText(content)
+        self.editor.document().setModified(False)
+        self.editor.document().modificationChanged.connect(self._on_modified_changed)
         layout.addWidget(self.editor)
-        
+
         # Output Area
         layout.addWidget(QLabel("Output:"))
         self.output_console = QTextEdit()
@@ -38,56 +49,46 @@ class ScriptEditorDialog(QDialog):
         # Buttons
         btn_layout = QHBoxLayout()
 
-        btn_load = QPushButton("Load")
-        btn_load.clicked.connect(self.load_script)
-
         btn_save = QPushButton("Save")
         btn_save.clicked.connect(self.save_script)
 
         btn_run = QPushButton("Run Script")
         btn_run.setDefault(True)  # picks up the accent-blue QPushButton:default styling
         btn_run.clicked.connect(self.run_script)
-        
+
         btn_clear = QPushButton("Clear Output")
         btn_clear.clicked.connect(self.output_console.clear)
-        
-        btn_close = QPushButton("Close")
-        btn_close.clicked.connect(self.accept)
-        
-        btn_layout.addWidget(btn_load)
+
+        btn_back = QPushButton("← Back to Diagram")
+        btn_back.clicked.connect(lambda: self.main_window.show_diagram_editor())
+
         btn_layout.addWidget(btn_save)
         btn_layout.addWidget(btn_run)
         btn_layout.addWidget(btn_clear)
         btn_layout.addStretch()
-        btn_layout.addWidget(btn_close)
-        
+        btn_layout.addWidget(btn_back)
+
         layout.addLayout(btn_layout)
-    
-    def load_script(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Load Script", "", "Python Files (*.py);;Text Files (*.txt)")
-        if file_path:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    self.editor.setPlainText(f.read())
-                self.output_console.append(f"Loaded: {file_path}")
-            except Exception as e:
-                self.output_console.append(f"Error loading file: {e}")
+
+    def _on_modified_changed(self, modified):
+        """Reflect unsaved edits in this Script's tab label (e.g.
+        'demo.py •'), same convention most code editors use."""
+        if hasattr(self.main_window, "update_script_tab_title"):
+            self.main_window.update_script_tab_title(self.file_path, modified)
 
     def save_script(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Script", "", "Python Files (*.py);;Text Files (*.txt)")
-        if file_path:
-            try:
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(self.editor.toPlainText())
-                self.output_console.append(f"Saved: {file_path}")
-            except Exception as e:
-                self.output_console.append(f"Error saving file: {e}")
-        
+        try:
+            with open(self.file_path, 'w', encoding='utf-8') as f:
+                f.write(self.editor.toPlainText())
+            self.editor.document().setModified(False)
+            self.output_console.append(f"Saved: {self.file_path}")
+        except Exception as e:
+            self.output_console.append(f"Error saving file: {e}")
+
     def run_script(self):
         """Execute the current script."""
         script_content = self.editor.toPlainText()
-        self.script_manager.current_script = script_content # Save state
-        
+
         result = self.script_manager.execute_script(script_content)
         self.output_console.append(">>> Execution:")
         self.output_console.append(result)
@@ -95,3 +96,21 @@ class ScriptEditorDialog(QDialog):
         # Scroll to bottom
         sb = self.output_console.verticalScrollBar()
         sb.setValue(sb.maximum())
+
+    def confirm_discard(self):
+        """Ask before this tab is closed with unsaved edits still in the
+        editor. Returns True if it's safe to proceed (no changes,
+        discarded, or saved successfully)."""
+        if not self.editor.document().isModified():
+            return True
+
+        reply = QMessageBox.question(
+            self, "Unsaved Changes",
+            f"'{os.path.basename(self.file_path)}' has unsaved changes. Save them before continuing?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save,
+        )
+        if reply == QMessageBox.Save:
+            self.save_script()
+            return not self.editor.document().isModified()
+        return reply == QMessageBox.Discard
