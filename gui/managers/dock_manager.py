@@ -2,7 +2,7 @@
 from PySide6.QtWidgets import QDockWidget, QTreeWidget, QTreeWidgetItem, QWidget, QVBoxLayout, QLineEdit, QLabel, QTabWidget
 from PySide6.QtCore import Qt
 from engine.blocks import BLOCK_REGISTRY
-from ..library import UserLibraryWidget
+from ..library import UserSpaceWidget
 
 
 class DockManager:
@@ -11,7 +11,7 @@ class DockManager:
     def __init__(self, main_window):
         self.main_window = main_window
         self.library_dock = None
-        self.user_library_widget = None
+        self.user_space_widget = None
         self.block_tree = None
         
     def create_library_dock(self):
@@ -19,6 +19,7 @@ class DockManager:
         
         # Create dock
         self.library_dock = QDockWidget("Library", self.main_window)
+        self.library_dock.setObjectName("library_dock")  # required by QMainWindow.saveState()/restoreState()
         self.library_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         
         # Container widget with tabs
@@ -51,12 +52,28 @@ class DockManager:
         
         library_tabs.addTab(blocks_tab, "Blocks")
         
-        # Tab 2: User Library
-        self.user_library_widget = UserLibraryWidget()
-        self.user_library_widget.load_requested.connect(
-            self.main_window.scene_manager.spawn_subgraph_from_library
+        # Tab 2: User Space -- Diagrams, SubGraphs, and Scripts, all scoped
+        # to the current project folder (see ProjectManager). No project
+        # is open yet at startup, so this starts with root=None -- an
+        # empty/placeholder state until File > Open Project Folder... sets
+        # a real one via UserSpaceWidget.set_root().
+        pm = self.main_window.project_manager
+        self.user_space_widget = UserSpaceWidget(pm.project_root)
+        # Lambdas, not direct bound-method connections: main_window.scene_manager
+        # is a property pointing at whichever diagram tab is currently
+        # active (there being no diagram tab at all yet, in fact -- this
+        # runs before MainWindow opens its first one), so it must be
+        # re-read fresh each time the signal fires, not captured now.
+        self.user_space_widget.diagram_open_requested.connect(
+            lambda path: self.main_window.open_diagram_tab(path)
         )
-        library_tabs.addTab(self.user_library_widget, "User Library")
+        self.user_space_widget.load_requested.connect(
+            lambda path: self.main_window.scene_manager.spawn_subgraph_from_library(path)
+        )
+        self.user_space_widget.script_open_requested.connect(
+            self.main_window.script_manager.open_script
+        )
+        library_tabs.addTab(self.user_space_widget, "User Space")
         
         library_layout.addWidget(library_tabs)
         

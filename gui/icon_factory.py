@@ -54,6 +54,16 @@ def _draw_open(p):
     p.drawRoundedRect(QRectF(3, 9.5, 18, 9.5), 2, 2)
 
 
+@_register("project")
+def _draw_project(p):
+    # Same folder glyph as "open", plus an accent badge -- distinguishes
+    # "switch the whole Project Folder" from "open a single file".
+    _draw_open(p)
+    p.setPen(Qt.NoPen)
+    p.setBrush(_ACCENT)
+    p.drawEllipse(QPointF(18.3, 17.5), 3.0, 3.0)
+
+
 @_register("save")
 def _draw_save(p):
     p.setPen(_pen())
@@ -272,6 +282,56 @@ def _draw_quit(p):
     path.arcTo(rect, 125, 290)
     p.drawPath(path)
     p.drawLine(QPointF(12, 3.5), QPointF(12, 12))
+
+
+def _draw_magnifier(p, sign):
+    p.setPen(_pen())
+    p.drawEllipse(QPointF(10.5, 10.5), 6.5, 6.5)
+    p.drawLine(QPointF(15.2, 15.2), QPointF(20, 20))
+    plus = QPainterPath()
+    plus.moveTo(7.3, 10.5); plus.lineTo(13.7, 10.5)
+    if sign == "+":
+        plus.moveTo(10.5, 7.3); plus.lineTo(10.5, 13.7)
+    p.drawPath(plus)
+
+
+@_register("zoom_in")
+def _draw_zoom_in(p):
+    _draw_magnifier(p, "+")
+
+
+@_register("zoom_out")
+def _draw_zoom_out(p):
+    _draw_magnifier(p, "-")
+
+
+@_register("zoom_fit")
+def _draw_zoom_fit(p):
+    p.setPen(_pen())
+    path = QPainterPath()
+    path.moveTo(4, 9); path.lineTo(4, 4); path.lineTo(9, 4)
+    path.moveTo(15, 4); path.lineTo(20, 4); path.lineTo(20, 9)
+    path.moveTo(4, 15); path.lineTo(4, 20); path.lineTo(9, 20)
+    path.moveTo(20, 15); path.lineTo(20, 20); path.lineTo(15, 20)
+    p.drawPath(path)
+    p.drawRoundedRect(QRectF(9, 9, 6, 6), 1, 1)
+
+
+@_register("rename")
+def _draw_rename(p):
+    p.setPen(_pen())
+    path = QPainterPath()
+    path.moveTo(5, 19); path.lineTo(6, 15); path.lineTo(16, 5)
+    path.lineTo(19, 8); path.lineTo(9, 18); path.closeSubpath()
+    path.moveTo(13, 8); path.lineTo(16, 11)
+    p.drawPath(path)
+
+
+@_register("duplicate")
+def _draw_duplicate(p):
+    p.setPen(_pen())
+    p.drawRoundedRect(QRectF(3, 7, 12, 14), 2, 2)
+    p.drawRoundedRect(QRectF(9, 3, 12, 14), 2, 2)
 
 
 def icon(name, color=None):

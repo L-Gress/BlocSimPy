@@ -249,32 +249,36 @@ class UIBlock(QGraphicsItem):
             else:
                 scene = self.scene()
                 if scene:
-                    views = scene.views()
-                    if views:
-                        main_window = views[0].parent() 
-                        if hasattr(main_window, "enter_subsystem"):
-                            main_window.enter_subsystem(self)
-                            return
+                    # scene.parent() (not scene.views()[0].parent()) --
+                    # NodeScene(main_window) sets this directly at
+                    # construction, independent of widget-tree reparenting
+                    # (e.g. into central_tabs' internal QStackedWidget),
+                    # which broke the views()[0]-based lookup.
+                    main_window = scene.parent()
+                    if hasattr(main_window, "enter_subsystem"):
+                        main_window.enter_subsystem(self)
+                        return
 
         # Open parameter editor if available
         if hasattr(self.model, 'get_editor_dialog'):
             editor = self.model.get_editor_dialog(None)
             if editor:
                 editor.exec()
-                
+
                 if hasattr(self.model, 'needs_port_refresh') and self.model.needs_port_refresh:
                     self.refresh_ports()
                     self.model.needs_port_refresh = False
-                    
-                    # Snapshot after dynamic change
-                    scene = self.scene()
-                    if scene:
-                        views = scene.views()
-                        if views:
-                            main_window = views[0].parent()
-                            if hasattr(main_window, 'scene_manager'):
-                                main_window.scene_manager.take_snapshot()
-                    
+
+                # Snapshot after any parameter edit, not just ones that
+                # changed port count -- take_snapshot() dedups against the
+                # last state, so this is a no-op if the dialog was cancelled
+                # or nothing actually changed.
+                scene = self.scene()
+                if scene:
+                    main_window = scene.parent()
+                    if hasattr(main_window, 'scene_manager'):
+                        main_window.scene_manager.take_snapshot()
+
         super().mouseDoubleClickEvent(event)
 
     def refresh_ports(self):

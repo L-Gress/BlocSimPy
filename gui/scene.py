@@ -54,7 +54,18 @@ class NodeScene(QGraphicsScene):
         super().mousePressEvent(event)
 
     def delete_block(self, block_item):
-        """Delete a block and all its connections."""
+        """Delete a block and all its connections.
+
+        No-ops if the block is already gone -- e.g. Select All followed by
+        Delete selects blocks AND their connections together, and deleting
+        a block already deletes its attached connections below; without
+        this guard, delete_selected() would then try to delete that same
+        connection a second time when it reaches it directly, hitting
+        QGraphicsScene::removeItem on an item no longer in any scene.
+        """
+        if block_item.scene() is not self:
+            return
+
         # Remove all connections attached to the block's ports
         for port in list(block_item.ports_ui.values()):
             for conn in list(port.connections):
@@ -86,7 +97,10 @@ class NodeScene(QGraphicsScene):
         return annotation
 
     def delete_annotation(self, annotation_item):
-        """Delete a free-text annotation."""
+        """Delete a free-text annotation. No-op if already removed (see
+        delete_block's docstring for why that can happen)."""
+        if annotation_item.scene() is not self:
+            return
         self.removeItem(annotation_item)
 
         parent = self.parent()
@@ -98,7 +112,10 @@ class NodeScene(QGraphicsScene):
                 pass
 
     def delete_connection(self, conn):
-        """Delete a connection."""
+        """Delete a connection. No-op if already removed (see delete_block's
+        docstring for why that can happen)."""
+        if conn.scene() is not self:
+            return
         try:
             # remove connection from ports
             if conn.start_port and conn in conn.start_port.connections:

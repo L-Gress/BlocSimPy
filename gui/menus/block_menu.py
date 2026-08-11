@@ -47,6 +47,7 @@ class BlockContextMenu:
             block_ui.rotate_90()
         elif selected_action == action_rename:
             BlockContextMenu.rename_block(block_ui)
+            BlockContextMenu._take_snapshot(scene)
         elif selected_action == action_params:
             if hasattr(block_ui.model, 'get_editor_dialog'):
                 editor = block_ui.model.get_editor_dialog(None)
@@ -58,14 +59,12 @@ class BlockContextMenu:
                         block_ui.model.needs_port_refresh = False
                     # SubGraph updates label on edit, force redraw
                     block_ui.update()
+                    BlockContextMenu._take_snapshot(scene)
         elif selected_action == action_enter:
             # Logic to enter subsystem
-            views = scene.views()
-            if views:
-                # Assuming the main window is the parent of the view
-                main_window = views[0].parent()
-                if hasattr(main_window, "enter_subsystem"):
-                    main_window.enter_subsystem(block_ui)
+            main_window = scene.parent()
+            if hasattr(main_window, "enter_subsystem"):
+                main_window.enter_subsystem(block_ui)
     
     @staticmethod
     def rename_block(block_ui):
@@ -92,3 +91,12 @@ class BlockContextMenu:
             
             # Force redraw
             block_ui.update()
+
+    @staticmethod
+    def _take_snapshot(scene):
+        """Record an undo snapshot after a menu action that edited the model
+        in place (rename, parameter edit) -- take_snapshot() dedups against
+        the last state, so this is a no-op if nothing actually changed."""
+        main_window = scene.parent()
+        if hasattr(main_window, "scene_manager"):
+            main_window.scene_manager.take_snapshot()

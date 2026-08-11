@@ -2,6 +2,7 @@
 from PySide6.QtWidgets import QMessageBox, QFileDialog
 from PySide6.QtCore import QPointF
 import json
+import os
 from engine.serialization import GraphSerializer
 from engine.blocks import BLOCK_REGISTRY
 from ..items import UIBlock, UIConnection, UIAnnotation
@@ -9,10 +10,17 @@ from .undo_manager import UndoManager
 
 
 class SceneManager:
-    """Manages all scene-related operations for MainWindow."""
-    
-    def __init__(self, main_window):
+    """Owns one open diagram: its scene, blocks, undo history, and file
+    state. MainWindow can have several of these alive at once (one per
+    open Diagram tab, see MainWindow.open_diagram_tab()) -- `scene` is
+    THIS diagram's own NodeScene, passed in explicitly rather than
+    reached via `main_window.scene` (which is a property pointing at
+    whichever diagram tab is currently active, not necessarily this
+    one)."""
+
+    def __init__(self, main_window, scene):
         self.main_window = main_window
+        self.scene = scene
         self.blocks_ui = []
         self.annotations_ui = []
         self.current_file_path = None
@@ -22,8 +30,10 @@ class SceneManager:
         self.undo_manager = UndoManager(self)
         self.take_snapshot() # Initial empty state snapshot
 
-        # Clipboard
-        self.clipboard_data = None
+        # Clipboard is intentionally NOT per-instance -- it lives on
+        # main_window (see copy_selection()/paste_selection() below) so
+        # Ctrl+C in one diagram tab and Ctrl+V in another actually works,
+        # instead of each diagram only ever seeing its own copies.
 
         # Subsystem navigation
         self.subsystem_stack = []
@@ -33,21 +43,35 @@ class SceneManager:
         """Helper to take a snapshot for undo/redo."""
         self.undo_manager.take_snapshot()
         # The very first snapshot (taken in __init__, and again whenever
-        # new_graph()/_load_scene_data() re-baseline the document) reflects
-        # a just-loaded/blank state, not an edit -- don't flag it dirty.
+        # _open_diagram_file()/_load_scene_data() re-baseline the document)
+        # reflects a just-loaded/blank state, not an edit -- don't flag it
+        # dirty.
         if self._baseline_taken:
             self.set_modified(True)
         else:
             self._baseline_taken = True
 
     def set_modified(self, modified):
-        """Update the dirty flag and refresh the window title's [*] indicator."""
+        """Update the dirty flag and refresh the window title's [*]
+        indicator plus this diagram's own tab label (e.g. 'sim.json •') --
+        other open diagrams' tabs are untouched."""
         self.is_modified = modified
         if hasattr(self.main_window, "refresh_title"):
             self.main_window.refresh_title()
+        if hasattr(self.main_window, "update_diagram_tab_title"):
+            self.main_window.update_diagram_tab_title(self)
+
+    def _status(self, message):
+        """Routine, non-blocking confirmation (saved/loaded/...) shown in
+        the status bar instead of an interrupting QMessageBox.information()
+        -- see MainWindow.show_status()."""
+        if hasattr(self.main_window, "show_status"):
+            self.main_window.show_status(message)
 
     def confirm_discard_changes(self):
-        """Ask to save unsaved changes before a destructive op (New/Load/Close).
+        """Ask to save this diagram's unsaved changes before closing its
+        tab or the whole app (New/Open create their own tab instead of
+        touching this one, so they no longer need to go through here).
 
         Returns True if it's safe to proceed (no changes, discarded, or saved
         successfully), False if the caller should abort (user cancelled, or
@@ -68,25 +92,6 @@ class SceneManager:
             return not self.is_modified
         return reply == QMessageBox.Discard
 
-    def new_graph(self):
-        """Clear the scene and start a fresh, unsaved diagram."""
-        if not self.confirm_discard_changes():
-            return
-
-        self.main_window.scene.clear()
-        self.blocks_ui.clear()
-        self.annotations_ui.clear()
-        self.subsystem_stack.clear()
-        self.current_file_path = None
-
-        self.undo_manager.undo_stack.clear()
-        self.undo_manager.redo_stack.clear()
-        self._baseline_taken = False
-        self.take_snapshot()
-
-        self._update_breadcrumb()
-        self.set_modified(False)
-        
     def add_block_to_scene(self, list_item):
         """Add a block from the library to the scene (ListWidget version)."""
         self.add_block_by_name(list_item.text())
@@ -97,32 +102,24 @@ class SceneManager:
             new_block = BLOCK_REGISTRY[block_class_name]()
             ui_block = UIBlock(new_block)
             ui_block.setPos(100, 100)
-            self.main_window.scene.addItem(ui_block)
+            self.scene.addItem(ui_block)
             self.blocks_ui.append(ui_block)
             self.take_snapshot()
     
     def save_selected_subgraph_to_library(self):
         """
-        Saves the selected SubGraph block to the User Library.
+        Saves the selected SubGraph block to User Space.
         """
-        selected = self.main_window.scene.selectedItems()
+        selected = self.scene.selectedItems()
         subgraph_blocks = [item for item in selected if isinstance(item, UIBlock) 
                           and item.model.__class__.__name__ == "SubGraph"]
         
         if not subgraph_blocks:
-            QMessageBox.information(
-                self.main_window,
-                "No SubGraph Selected",
-                "Please select a SubGraph block to save."
-            )
+            self._status("Select a SubGraph block first.")
             return
-        
+
         if len(subgraph_blocks) > 1:
-            QMessageBox.warning(
-                self.main_window,
-                "Multiple SubGraphs",
-                "Please select only one SubGraph."
-            )
+            self._status("Select only one SubGraph to save.")
             return
         
         subgraph_ui = subgraph_blocks[0]
@@ -138,13 +135,16 @@ class SceneManager:
         # Ask for a name
         subgraph_name = subgraph_model.params.get("BlockName", "SubGraph")
         
-        # Save via library widget
-        self.main_window.user_library_widget.save_subgraph(subgraph_data, subgraph_name)
+        # Save via the User Space widget
+        self.main_window.user_space_widget.save_subgraph(subgraph_data, subgraph_name)
     
     def spawn_subgraph_from_library(self, file_path):
         """
         Loads a JSON file from library and creates a SubGraph block.
         """
+        if hasattr(self.main_window, "show_diagram_editor"):
+            self.main_window.show_diagram_editor()
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 subgraph_data = json.load(f)
@@ -172,14 +172,10 @@ class SceneManager:
             ui_block.setPos(150, 150)
             ui_block.refresh_ports()
             
-            self.main_window.scene.addItem(ui_block)
+            self.scene.addItem(ui_block)
             self.blocks_ui.append(ui_block)
-            
-            QMessageBox.information(
-                self.main_window,
-                "SubGraph Loaded",
-                f"Loaded SubGraph from {file_path}"
-            )
+
+            self._status(f"Loaded SubGraph from {os.path.basename(file_path)}")
         except Exception as e:
             QMessageBox.critical(self.main_window, "Error", f"Failed to load SubGraph: {str(e)}")
     
@@ -218,7 +214,7 @@ class SceneManager:
     def go_up_level(self):
         """Called by Toolbar button to go back up."""
         if not self.subsystem_stack:
-            QMessageBox.information(self.main_window, "Top Level", "Already at top level.")
+            self._status("Already at top level.")
             return
 
         # 0. Detect InputPort/OutputPort renames made while inside, so the
@@ -293,38 +289,39 @@ class SceneManager:
         else:
             self.save_graph_as()
     
-    def load_graph(self):
-        """Load a graph from file."""
-        if not self.confirm_discard_changes():
-            return
+    def _default_open_dir(self):
+        """Starting directory for the Save As file picker: the current
+        project folder, if one is open."""
+        project_manager = getattr(self.main_window, "project_manager", None)
+        return project_manager.project_root if project_manager and project_manager.project_root else ""
 
-        file_path, _ = QFileDialog.getOpenFileName(
-            self.main_window,
-            "Load Graph",
-            "",
-            "JSON Files (*.json)"
-        )
-        if file_path:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                self._load_scene_data(data)
-                self.current_file_path = file_path
-                self.undo_manager.undo_stack.clear()
-                self.undo_manager.redo_stack.clear()
-                self._baseline_taken = False
-                self.take_snapshot()
-                self.set_modified(False)
-                QMessageBox.information(self.main_window, "Success", f"Loaded from {file_path}")
-            except Exception as e:
-                QMessageBox.critical(self.main_window, "Error", f"Failed to load: {str(e)}")
-    
+    def load_file(self, file_path):
+        """Load `file_path` into THIS (freshly-created, blank) diagram.
+        Called by MainWindow.open_diagram_tab() right after constructing
+        a new tab for it -- opening a diagram no longer overwrites
+        whatever's already on screen, it gets its own tab, so there's
+        nothing here to confirm discarding."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            self._load_scene_data(data)
+            self.current_file_path = file_path
+            self.undo_manager.undo_stack.clear()
+            self.undo_manager.redo_stack.clear()
+            self._baseline_taken = False
+            self.take_snapshot()
+            self.set_modified(False)
+            self._status(f"Loaded {os.path.basename(file_path)}")
+        except Exception as e:
+            QMessageBox.critical(self.main_window, "Error", f"Failed to load: {str(e)}")
+
     def save_graph_as(self):
-        """Save the current graph to a new file."""
+        """Save the current graph to a new file, via a picker defaulted
+        into the current project folder."""
         file_path, _ = QFileDialog.getSaveFileName(
             self.main_window,
             "Save Graph As",
-            "",
+            self._default_open_dir(),
             "JSON Files (*.json)"
         )
         if file_path:
@@ -343,17 +340,27 @@ class SceneManager:
                     "solver": tm.sim_solver,
                 }
             data = GraphSerializer.serialize_graph(self.blocks_ui, self.annotations_ui, sim_params)
+            # Lets User Space tell this apart from a SubGraph .json in the
+            # same flat project folder -- see UserSpaceWidget._classify().
+            data["blocksimpy_kind"] = "diagram"
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4)
             self.set_modified(False)
-            QMessageBox.information(self.main_window, "Success", f"Saved to {file_path}")
+
+            # In case this landed in the current project folder, reflect it
+            # in User Space's Diagrams list right away.
+            user_space = getattr(self.main_window, "user_space_widget", None)
+            if user_space is not None:
+                user_space.refresh_tree()
+
+            self._status(f"Saved {os.path.basename(file_path)}")
         except Exception as e:
             QMessageBox.critical(self.main_window, "Error", f"Failed to save: {str(e)}")
     
     def _load_scene_data(self, data):
         """Helper: Clears scene and loads from dictionary."""
         # Clear current scene
-        self.main_window.scene.clear()
+        self.scene.clear()
         self.blocks_ui.clear()
         self.annotations_ui.clear()
 
@@ -390,7 +397,7 @@ class SceneManager:
                 ui_block.setRotation(block_model._temp_rotation)
                 delattr(block_model, '_temp_rotation')
             
-            self.main_window.scene.addItem(ui_block)
+            self.scene.addItem(ui_block)
             self.blocks_ui.append(ui_block)
             id_to_ui_block[block_model.id] = ui_block
         
@@ -416,7 +423,7 @@ class SceneManager:
                         conn.points = [QPointF(p[0], p[1]) for p in conn_data["points"]]
                     
                     conn.update_path()
-                    self.main_window.scene.addItem(conn)
+                    self.scene.addItem(conn)
                     from_port_ui.connections.append(conn)
                     to_port_ui.connections.append(conn)
                     to_port_ui.model.connected_port = from_port_ui.model
@@ -425,220 +432,134 @@ class SceneManager:
         for entry in GraphSerializer.deserialize_annotations(data):
             annotation = UIAnnotation(entry["text"])
             annotation.setPos(entry["x"], entry["y"])
-            self.main_window.scene.addItem(annotation)
+            self.scene.addItem(annotation)
             self.annotations_ui.append(annotation)
 
     def copy_selection(self):
-        """Copy selected blocks to clipboard."""
-        selected = self.main_window.scene.selectedItems()
+        """Copy selected blocks to the shared cross-diagram clipboard (see
+        main_window.diagram_clipboard)."""
+        selected = self.scene.selectedItems()
         blocks = [item for item in selected if isinstance(item, UIBlock)]
         if not blocks:
             return
-            
-        self.clipboard_data = GraphSerializer.serialize_graph(blocks)
+
+        self.main_window.diagram_clipboard = GraphSerializer.serialize_graph(blocks)
+        # Each fresh copy restarts the paste offset, so the first paste of a
+        # new copy lands right next to the originals again instead of
+        # continuing to cascade from a previous copy/paste sequence.
+        self.main_window.diagram_clipboard_paste_count = 0
 
     def cut_selection(self):
-        """Cut selected blocks to clipboard."""
+        """Cut selected blocks to the shared cross-diagram clipboard."""
         self.copy_selection()
-        
-        # Delete selected blocks and connections
-        selected = self.main_window.scene.selectedItems()
-        # Delete connections first (to avoid issues with block deletion)
-        # But scene.delete_block handles connection deletion.
-        # Just loop carefully.
-        
-        # Filter blocks to delete
+
+        # Delete selected blocks (and their connections automatically via scene.delete_block)
+        selected = self.scene.selectedItems()
         blocks_to_delete = [item for item in selected if isinstance(item, UIBlock)]
-        # Filter standalone connections (if supported in future, for now just blocks)
-        
-        scene = self.main_window.scene
+
+        scene = self.scene
         for block in blocks_to_delete:
             scene.delete_block(block)
 
     def paste_selection(self):
-        """Paste blocks from clipboard."""
-        if not self.clipboard_data:
+        """Paste blocks from the shared cross-diagram clipboard into THIS
+        diagram -- so Ctrl+C in one diagram tab and Ctrl+V in another (or
+        the same one) both work. Cascades further each repeated paste so
+        identical Ctrl+V presses don't stack blocks on top of each other."""
+        clipboard_data = getattr(self.main_window, "diagram_clipboard", None)
+        if not clipboard_data:
             return
 
-        # Deserialize (creates NEW models with FRESH IDs)
-        block_models, connections_data = GraphSerializer.deserialize_graph(self.clipboard_data)
+        self.main_window.diagram_clipboard_paste_count = (
+            getattr(self.main_window, "diagram_clipboard_paste_count", 0) + 1
+        )
+        offset = 20 * self.main_window.diagram_clipboard_paste_count
+        self._paste_data(clipboard_data, offset, offset)
 
-        # Map to find UI blocks for connections
+    def duplicate_selection(self):
+        """Duplicate the selected blocks in place, offset slightly, without
+        touching the clipboard (so it doesn't clobber a pending Copy)."""
+        selected = self.scene.selectedItems()
+        blocks = [item for item in selected if isinstance(item, UIBlock)]
+        if not blocks:
+            return
+
+        data = GraphSerializer.serialize_graph(blocks)
+        self._paste_data(data, 20, 20)
+
+    def _paste_data(self, data, offset_x, offset_y):
+        """Shared implementation behind Paste and Duplicate: deserialize
+        `data` (fresh block/connection ids), place it offset from its
+        original position, and select the newly created items."""
+        self.scene.clearSelection()
+
+        block_models, connections_data = GraphSerializer.deserialize_graph(data)
+
         id_to_ui_block = {}
-        
-        # Determine offset (e.g., center of screen or offset from original)
-        # Simple approach: Offset by +20, +20 from original position
-        offset_x = 20
-        offset_y = 20
 
-        # Create UI Blocks
-        selected_items = []
         for block_model in block_models:
             ui_block = UIBlock(block_model)
-            
-            # Restore position with offset
+
             if hasattr(block_model, '_temp_position'):
                 pos = block_model._temp_position
                 new_x = pos['x'] + offset_x
                 new_y = pos['y'] + offset_y
                 ui_block.setPos(QPointF(new_x, new_y))
                 delattr(block_model, '_temp_position')
-            
-            # Restore rotation
+
             if hasattr(block_model, '_temp_rotation'):
                 ui_block.setRotation(block_model._temp_rotation)
                 delattr(block_model, '_temp_rotation')
-            
-            # Add to Scene
-            self.main_window.scene.addItem(ui_block)
+
+            self.scene.addItem(ui_block)
             self.blocks_ui.append(ui_block)
             id_to_ui_block[block_model.id] = ui_block
-            
-            # Select the new items
-            ui_block.setSelected(True)
-            selected_items.append(ui_block)
-            
-            # Initialize ports
+
             if hasattr(block_model, "refresh_io_ports"):
-                # Ensure SubGraphs have ports before connecting
                 block_model.refresh_io_ports()
                 ui_block.refresh_ports()
 
-        # Recreate Connections
-        for conn_data in connections_data:
-            from_block = conn_data["from_block"]
-            to_block = conn_data["to_block"]
-            from_port_name = conn_data["from_port"]
-            to_port_name = conn_data["to_port"]
-            
-            from_ui = id_to_ui_block.get(from_block.id)
-            to_ui = id_to_ui_block.get(to_block.id)
-            
-            if from_ui and to_ui:
-                from_port_ui = from_ui.ports_ui.get(from_port_name)
-                to_port_ui = to_ui.ports_ui.get(to_port_name)
-                
-                if from_port_ui and to_port_ui:
-                    conn = UIConnection(from_port_ui, to_port_ui)
-                    
-                    # Offset points if they exist
-                    if conn_data.get("points"):
-                        conn.points = [QPointF(p[0] + offset_x, p[1] + offset_y) for p in conn_data["points"]]
-                    
-                    conn.update_path()
-                    self.main_window.scene.addItem(conn)
-                    from_port_ui.connections.append(conn)
-                    to_port_ui.connections.append(conn)
-                    to_port_ui.model.connected_port = from_port_ui.model
-                    
-                    conn.setSelected(True)
-        
-        # Deselect everything else first?
-        # Ideally, we should clear selection before pasting, then select pasted items.
-        # But 'set_selected' above only marks them as selected.
-        # Let's clear existing selection first.
-        # Note: We can't access scene easily inside the loop if we want to clear first.
-        # We should have cleared selection at the start of paste.
-        pass # Placeholder
-
-    def copy_selection(self):
-        """Copy selected blocks to clipboard."""
-        selected = self.main_window.scene.selectedItems()
-        blocks = [item for item in selected if isinstance(item, UIBlock)]
-        if not blocks:
-            return
-            
-        self.clipboard_data = GraphSerializer.serialize_graph(blocks)
-
-    def cut_selection(self):
-        """Cut selected blocks to clipboard."""
-        self.copy_selection()
-        
-        # Delete selected blocks (and their connections automatically via scene.delete_block)
-        selected = self.main_window.scene.selectedItems()
-        blocks_to_delete = [item for item in selected if isinstance(item, UIBlock)]
-        
-        scene = self.main_window.scene
-        for block in blocks_to_delete:
-            scene.delete_block(block)
-
-    def paste_selection(self):
-        """Paste blocks from clipboard."""
-        if not self.clipboard_data:
-            return
-
-        # Clear current selection so we can select the pasted items
-        self.main_window.scene.clearSelection()
-
-        # Deserialize (creates NEW models with FRESH IDs)
-        block_models, connections_data = GraphSerializer.deserialize_graph(self.clipboard_data)
-
-        # Map to find UI blocks for connections
-        id_to_ui_block = {}
-        
-        # Offset by +20, +20 from original position
-        offset_x = 20
-        offset_y = 20
-
-        # Create UI Blocks
-        for block_model in block_models:
-            ui_block = UIBlock(block_model)
-            
-            # Restore position with offset
-            if hasattr(block_model, '_temp_position'):
-                pos = block_model._temp_position
-                new_x = pos['x'] + offset_x
-                new_y = pos['y'] + offset_y
-                ui_block.setPos(QPointF(new_x, new_y))
-                delattr(block_model, '_temp_position')
-            
-            # Restore rotation
-            if hasattr(block_model, '_temp_rotation'):
-                ui_block.setRotation(block_model._temp_rotation)
-                delattr(block_model, '_temp_rotation')
-            
-            # Add to Scene
-            self.main_window.scene.addItem(ui_block)
-            self.blocks_ui.append(ui_block)
-            id_to_ui_block[block_model.id] = ui_block
-            
-            # Initialize ports if SubGraph
-            if hasattr(block_model, "refresh_io_ports"):
-                 block_model.refresh_io_ports()
-                 ui_block.refresh_ports()
-            
-            # Select the new item
             ui_block.setSelected(True)
 
-        # Recreate Connections
         for conn_data in connections_data:
             from_block = conn_data["from_block"]
             to_block = conn_data["to_block"]
             from_port_name = conn_data["from_port"]
             to_port_name = conn_data["to_port"]
-            
+
             from_ui = id_to_ui_block.get(from_block.id)
             to_ui = id_to_ui_block.get(to_block.id)
-            
+
             if from_ui and to_ui:
                 from_port_ui = from_ui.ports_ui.get(from_port_name)
                 to_port_ui = to_ui.ports_ui.get(to_port_name)
-                
+
                 if from_port_ui and to_port_ui:
                     conn = UIConnection(from_port_ui, to_port_ui)
-                    
-                    # Offset points if they exist
+
                     if conn_data.get("points"):
                         conn.points = [QPointF(p[0] + offset_x, p[1] + offset_y) for p in conn_data["points"]]
-                    
+
                     conn.update_path()
-                    self.main_window.scene.addItem(conn)
+                    self.scene.addItem(conn)
                     from_port_ui.connections.append(conn)
                     to_port_ui.connections.append(conn)
                     to_port_ui.model.connected_port = from_port_ui.model
-                    
+
                     conn.setSelected(True)
-        
+
+        self.take_snapshot()
+
+    def rename_selected(self):
+        """Rename the single selected block (F2). No-ops on 0 or 2+ blocks
+        selected -- there's no sensible target/name to use otherwise."""
+        selected = self.scene.selectedItems()
+        blocks = [item for item in selected if isinstance(item, UIBlock)]
+        if len(blocks) != 1:
+            return
+
+        from ..menus.block_menu import BlockContextMenu
+        BlockContextMenu.rename_block(blocks[0])
         self.take_snapshot()
 
     def _update_breadcrumb(self):

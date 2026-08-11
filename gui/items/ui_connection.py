@@ -540,6 +540,12 @@ class UIConnection(QGraphicsPathItem):
             self._drag_index = -1
             self._drag_orientation = None
             self.update_path()
+
+            scene = self.scene()
+            if scene:
+                parent = scene.parent()
+                if parent and hasattr(parent, 'scene_manager'):
+                    parent.scene_manager.take_snapshot()
         super().mouseReleaseEvent(event)
 
     def _simplify_path(self):

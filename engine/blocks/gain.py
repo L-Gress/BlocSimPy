@@ -58,7 +58,7 @@ class Gain(BlockModel):
         self._cache_params()
 
     def get_editor_dialog(self, parent=None):
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox
+        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QMessageBox
 
         dialog = QDialog(parent)
         dialog.setWindowTitle("Edit Gain")
@@ -78,13 +78,21 @@ class Gain(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
+            # Validate first, without touching self.params, so a bad value
+            # in one field can't partially apply before we bail out.
+            parsed = {}
             for key, le in widgets.items():
-                new_str = le.text()
                 try:
-                    self.params[key] = float(new_str)
+                    parsed[key] = float(le.text())
                 except ValueError:
-                    self.params[key] = new_str
-            
+                    QMessageBox.warning(
+                        dialog, "Invalid Value",
+                        f"'{key}' must be a number (got '{le.text()}')."
+                    )
+                    return
+
+            self.params.update(parsed)
+
             # Update label and refresh the cached gain on manual edit
             self._update_label()
             self._cache_params()

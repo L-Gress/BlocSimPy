@@ -36,8 +36,8 @@ class _FakeMainWindow(QObject):
 def _build_scene_with_passthrough_subgraph():
     """Constant -> SubGraph(In1 -> Out1 passthrough) -> Scope, fully wired."""
     mw = _FakeMainWindow()
-    mw.scene_manager = SceneManager(mw)
     mw.scene = NodeScene(mw)
+    mw.scene_manager = SceneManager(mw, mw.scene)
     sm = mw.scene_manager
 
     sg = SubGraph()

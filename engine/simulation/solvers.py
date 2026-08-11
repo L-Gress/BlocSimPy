@@ -14,6 +14,20 @@ import numpy as np
 from ..models import BlockModel
 
 
+def _block_label(block) -> str:
+    """User-facing name for a block, for error messages -- its custom
+    'BlockName' if set, falling back to the model's default name."""
+    params = getattr(block, "params", None)
+    name = params.get("BlockName", block.name) if params else getattr(block, "name", None)
+    return f"{name} ({block.__class__.__name__})" if name else block.__class__.__name__
+
+
+class BlockRuntimeError(RuntimeError):
+    """A block's compute()/update_state() raised during simulation.
+    Wraps the original exception with which block caused it, so the
+    error the user sees names a block instead of a bare Python traceback."""
+
+
 class Solver:
     """Base class for step solvers."""
 
@@ -32,9 +46,15 @@ class EulerSolver(Solver):
 
     def step(self, sorted_blocks, stateful_blocks, t, dt):
         for block in sorted_blocks:
-            block.compute(t, dt)
+            try:
+                block.compute(t, dt)
+            except Exception as e:
+                raise BlockRuntimeError(f"{_block_label(block)}: {e}") from e
         for block in stateful_blocks:
-            block.update_state(t, dt)
+            try:
+                block.update_state(t, dt)
+            except Exception as e:
+                raise BlockRuntimeError(f"{_block_label(block)}: {e}") from e
 
 
 class RK4Solver(Solver):
@@ -62,33 +82,42 @@ class RK4Solver(Solver):
 
     def step(self, sorted_blocks, stateful_blocks, t, dt):
         for block in sorted_blocks:
-            block.compute(t, dt)
+            try:
+                block.compute(t, dt)
+            except Exception as e:
+                raise BlockRuntimeError(f"{_block_label(block)}: {e}") from e
 
         for block in stateful_blocks:
-            k1 = block.get_derivative(t, dt)
-            if k1 is None:
-                block.update_state(t, dt)
-                continue
-            k1 = np.asarray(k1, dtype=float)
-            if k1.size == 0:
-                # Nothing to integrate (e.g. a TransferFunction with no
-                # internal states); update_state() is a safe no-op here.
-                block.update_state(t, dt)
-                continue
+            try:
+                self._integrate_block(block, t, dt)
+            except Exception as e:
+                raise BlockRuntimeError(f"{_block_label(block)}: {e}") from e
 
-            x0 = np.asarray(block.get_state(), dtype=float)
+    def _integrate_block(self, block, t, dt):
+        k1 = block.get_derivative(t, dt)
+        if k1 is None:
+            block.update_state(t, dt)
+            return
+        k1 = np.asarray(k1, dtype=float)
+        if k1.size == 0:
+            # Nothing to integrate (e.g. a TransferFunction with no
+            # internal states); update_state() is a safe no-op here.
+            block.update_state(t, dt)
+            return
 
-            block.set_state(x0 + (dt / 2.0) * k1)
-            k2 = np.asarray(block.get_derivative(t + dt / 2.0, dt), dtype=float)
+        x0 = np.asarray(block.get_state(), dtype=float)
 
-            block.set_state(x0 + (dt / 2.0) * k2)
-            k3 = np.asarray(block.get_derivative(t + dt / 2.0, dt), dtype=float)
+        block.set_state(x0 + (dt / 2.0) * k1)
+        k2 = np.asarray(block.get_derivative(t + dt / 2.0, dt), dtype=float)
 
-            block.set_state(x0 + dt * k3)
-            k4 = np.asarray(block.get_derivative(t + dt, dt), dtype=float)
+        block.set_state(x0 + (dt / 2.0) * k2)
+        k3 = np.asarray(block.get_derivative(t + dt / 2.0, dt), dtype=float)
 
-            x_new = x0 + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
-            block.set_state(x_new)
+        block.set_state(x0 + dt * k3)
+        k4 = np.asarray(block.get_derivative(t + dt, dt), dtype=float)
+
+        x_new = x0 + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+        block.set_state(x_new)
 
 
 SOLVERS = {
