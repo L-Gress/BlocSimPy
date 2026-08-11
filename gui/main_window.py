@@ -94,11 +94,18 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(tm.action_cut)
         edit_menu.addAction(tm.action_copy)
         edit_menu.addAction(tm.action_paste)
+        edit_menu.addAction(tm.action_duplicate)
         edit_menu.addAction(tm.action_delete)
+        edit_menu.addSeparator()
+        edit_menu.addAction(tm.action_rename)
         edit_menu.addSeparator()
         edit_menu.addAction(tm.action_select_all)
 
         view_menu = menu_bar.addMenu("&View")
+        view_menu.addAction(tm.action_zoom_in)
+        view_menu.addAction(tm.action_zoom_out)
+        view_menu.addAction(tm.action_zoom_fit)
+        view_menu.addSeparator()
         view_menu.addAction(tm.action_toggle_lib)
         view_menu.addAction(tm.action_up)
 

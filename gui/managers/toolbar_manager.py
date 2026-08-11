@@ -69,6 +69,23 @@ class ToolbarManager:
         self.action_delete = self._make_action(
             "Delete", lambda: self.main_window.scene.delete_selected(), QKeySequence.Delete, "delete"
         )
+        self.action_duplicate = self._make_action(
+            "Duplicate", sm.duplicate_selection, QKeySequence("Ctrl+D"), "duplicate"
+        )
+        self.action_rename = self._make_action(
+            "Rename", sm.rename_selected, QKeySequence("F2"), "rename"
+        )
+
+        # --- View / Zoom ---
+        self.action_zoom_in = self._make_action(
+            "Zoom In", lambda: self.main_window.view.zoom_in(), QKeySequence("Ctrl+="), "zoom_in"
+        )
+        self.action_zoom_out = self._make_action(
+            "Zoom Out", lambda: self.main_window.view.zoom_out(), QKeySequence("Ctrl+-"), "zoom_out"
+        )
+        self.action_zoom_fit = self._make_action(
+            "Zoom to Fit", lambda: self.main_window.view.zoom_to_fit(), QKeySequence("Ctrl+0"), "zoom_fit"
+        )
 
         # --- Simulation ---
         self.action_sim_settings = self._make_action(
@@ -113,6 +130,9 @@ class ToolbarManager:
         self.toolbar.addAction(self.action_undo)
         self.toolbar.addAction(self.action_redo)
         self.toolbar.addSeparator()
+        for action in (self.action_zoom_out, self.action_zoom_in, self.action_zoom_fit):
+            self.toolbar.addAction(action)
+        self.toolbar.addSeparator()
         self.toolbar.addAction(self.action_up)
         self.toolbar.addSeparator()
         for action in (self.action_save_subgraph, self.action_toggle_lib, self.action_scripts):
@@ -155,9 +175,9 @@ class ToolbarManager:
         # (or, for unconnected inputs, silently reading 0.0 unnoticed).
         check_engine = SimulationEngine()
         check_engine.blocks = block_models
-        issues = check_engine.check_diagram()
+        issues = check_engine.check_diagram_detailed()
         if issues:
-            check_dialog = DiagramCheckDialog(issues, self.main_window)
+            check_dialog = DiagramCheckDialog(issues, self.main_window, main_window=self.main_window)
             if not check_dialog.exec():
                 return
 

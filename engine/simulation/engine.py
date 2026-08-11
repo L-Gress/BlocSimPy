@@ -151,17 +151,30 @@ class SimulationEngine:
         intentional behavior, so it doesn't suddenly hard-block diagrams
         that already work today).
         """
-        issues: "List[str]" = []
+        return [f"{d['level']}: {d['message']}" for d in self.check_diagram_detailed()]
+
+    def check_diagram_detailed(self) -> "List[Dict[str, Any]]":
+        """Structured version of check_diagram(), for callers that want to
+        locate the offending block(s) (e.g. a GUI selecting/centering them
+        on canvas) rather than just display the message. Each issue is
+        {"level": "ERROR"|"WARNING", "message": str, "blocks": [block_name, ...]}.
+        check_diagram() derives its plain-string form from this."""
+        issues: "List[Dict[str, Any]]" = []
 
         try:
             ExecutionOrdering.topological_sort(self.blocks)
         except AlgebraicLoopError as e:
-            issues.append(f"ERROR: {e}")
+            names = [b.params.get("BlockName", b.name) if hasattr(b, "params") else b.name for b in e.blocks]
+            issues.append({"level": "ERROR", "message": str(e), "blocks": names})
 
         for block in self.blocks:
             block_name = block.params.get("BlockName", block.name) if hasattr(block, "params") else block.name
             for port_name, port in block.inputs.items():
                 if port.connected_port is None:
-                    issues.append(f"WARNING: {block_name}.{port_name} is not connected (will read 0.0)")
+                    issues.append({
+                        "level": "WARNING",
+                        "message": f"{block_name}.{port_name} is not connected (will read 0.0)",
+                        "blocks": [block_name],
+                    })
 
         return issues

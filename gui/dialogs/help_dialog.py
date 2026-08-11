@@ -32,10 +32,25 @@ TOOLBAR_HELP = [
         ("action_copy", "Copy the selected blocks to the clipboard without removing "
                          "them."),
         ("action_paste", "Paste the clipboard's blocks into the diagram, offset "
-                          "slightly so they land next to the originals."),
+                          "slightly so they land next to the originals -- pasting "
+                          "again offsets further each time, so repeats don't stack."),
+        ("action_duplicate", "Make an offset copy of the selected block(s) in place, "
+                              "without touching the clipboard."),
+        ("action_delete", "Delete the selected blocks, wires, or annotations."),
+        ("action_rename", "Rename the single selected block (its display label, via "
+                           "the 'BlockName' parameter)."),
         ("action_select_all", "Select every block, wire, and annotation on the "
                                "current canvas."),
-        ("action_delete", "Delete the selected blocks, wires, or annotations."),
+    ]),
+    ("View", [
+        ("action_zoom_in", "Zoom in on the canvas, centered on the current view."),
+        ("action_zoom_out", "Zoom out on the canvas, centered on the current view."),
+        ("action_zoom_fit", "Zoom and pan so every block on the canvas is visible "
+                             "at once. You can also zoom with the mouse wheel "
+                             "(anchored under the cursor) and pan by dragging with "
+                             "the middle mouse button."),
+        ("action_toggle_lib", "Show or hide the Library dock on the left -- the "
+                               "block palette and your User Library."),
     ]),
     ("Simulation", [
         ("action_sim_settings", "Choose the simulation's duration, time step, and "
@@ -58,8 +73,6 @@ TOOLBAR_HELP = [
         ("action_save_subgraph", "Save the selected SubGraph block as a named, "
                                   "reusable component in your User Library, so it "
                                   "can be dragged into other diagrams later."),
-        ("action_toggle_lib", "Show or hide the Library dock on the left -- the "
-                               "block palette and your User Library."),
         ("action_scripts", "Open the Script Editor to write and run custom Python "
                             "code against the current diagram (e.g. batch edits, "
                             "or driving the PythonFunction block)."),
