@@ -7,11 +7,28 @@ places (toolbar + menu) instead of two independent copies that could drift.
 import os
 from PySide6.QtWidgets import QToolBar, QMessageBox, QProgressBar, QApplication
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import Qt, QThread, QObject, Signal
 from ..dialogs import SimulationSettingsDialog, DiagramCheckDialog, AboutDialog
 from ..workers import SimulationWorker
 from .. import icon_factory
 from engine.simulation import SimulationEngine
+
+
+class _GuiThreadRelay(QObject):
+    """Lives on the GUI thread and re-emits SimulationWorker's signals
+    there -- see run_simulation(). Qt only auto-queues a cross-thread
+    signal connection when it can read the *receiver's* thread affinity
+    off a real QObject; ToolbarManager's own methods are plain bound
+    methods (ToolbarManager isn't a QObject), so connecting the worker's
+    signals straight to them left Qt with no receiver thread to queue
+    against and it ran them directly on the worker thread -- which built
+    Qt widgets off the GUI thread and threw "QObject::setParent: ...
+    different thread" / recursive-repaint errors. Routing through this
+    QObject gives Qt a real GUI-thread receiver for the first hop; the
+    second hop (relay -> ToolbarManager method) then always fires from
+    code already running on the GUI thread."""
+    finished = Signal(object)
+    progress = Signal(float)
 
 
 class ToolbarManager:
@@ -421,11 +438,18 @@ class ToolbarManager:
         self._sim_worker.moveToThread(self._sim_thread)
 
         self._sim_thread.started.connect(self._sim_worker.run)
-        self._sim_worker.finished.connect(self._on_simulation_finished)
+        # See _GuiThreadRelay: the worker's signals go through it rather
+        # than straight to these plain ToolbarManager methods, so they
+        # land on the GUI thread instead of running on the worker thread.
+        self._sim_relay = _GuiThreadRelay(self.main_window)
+        self._sim_worker.finished.connect(self._sim_relay.finished)
+        self._sim_relay.finished.connect(self._on_simulation_finished)
+        self._sim_worker.progress.connect(self._sim_relay.progress)
+        self._sim_relay.progress.connect(self._on_run_progress)
+
         self._sim_worker.finished.connect(self._sim_thread.quit)
         self._sim_worker.finished.connect(self._sim_worker.deleteLater)
         self._sim_thread.finished.connect(self._sim_thread.deleteLater)
-        self._sim_worker.progress.connect(self._on_run_progress)
 
         self._set_running("sim")
         self._sim_thread.start()
