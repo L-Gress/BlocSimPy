@@ -6,8 +6,10 @@ from engine.blocks.sine_wave import SineWave
 from engine.blocks.ramp import Ramp
 from engine.blocks.clock import Clock
 from engine.blocks.lookup_table import LookupTable
+from engine.simulation.engine import SimulationEngine
+from engine.variables import make_variable_ref, get_active_variables, set_active_variables
 
-from conftest import set_params
+from conftest import set_params, connect
 
 
 class TestConstant(unittest.TestCase):
@@ -98,6 +100,30 @@ class TestLookupTable(unittest.TestCase):
         lut.inputs["in"].value = 1.0
         lut.compute(0, 0.01)
         self.assertEqual(lut.outputs["out"].value, 0.0)
+
+    def test_table_can_bind_to_declared_array_variable(self):
+        # The whole X/Y table can be a global variable's value (see
+        # engine/variables.py and LookupTableDialog's "Bind entire table"
+        # toggle), not just a scalar -- resolved the same way any other
+        # variable-bound param is.
+        saved = get_active_variables()
+        try:
+            set_active_variables({})
+            lut = LookupTable()
+            lut.params["Table"] = make_variable_ref("Curve")
+            c = Constant()
+            set_params(c, Value=0.5)
+            connect(lut, "in", c)
+
+            engine = SimulationEngine()
+            engine.configure([c, lut], duration=0.02, dt=0.01,
+                              variables={"Curve": [(0.0, 0.0), (1.0, 10.0), (2.0, 20.0)]})
+            result = engine.run()
+
+            self.assertTrue(result.success, result.error_message)
+            self.assertAlmostEqual(lut.outputs["out"].value, 5.0)
+        finally:
+            set_active_variables(saved)
 
 
 if __name__ == "__main__":

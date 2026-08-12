@@ -11,7 +11,16 @@ class ScriptEditorWidget(QWidget):
     UserSpaceWidget.create_script(), or opened by double-clicking it in
     the tree) -- Save writes straight back to that path, so scripts stay
     organized in User Space rather than scattered wherever a native
-    file-save dialog last pointed."""
+    file-save dialog last pointed.
+
+    Running/saving this tab is done via the SAME toolbar Run/Stop and Save
+    actions a Diagram tab uses (see MainWindow.active_script_widget() and
+    ToolbarManager) -- not a Run Script/Save button of its own, so there's
+    one consistent place for both regardless of which kind of tab is
+    focused. Has no Output pane of its own either -- Run's output goes to
+    the Console dock instead (see ToolbarManager.run_script()), which is
+    the single combined log for every Script run and every typed command,
+    not one separate log per open Script tab."""
 
     def __init__(self, main_window, script_manager, file_path, content):
         super().__init__()
@@ -36,35 +45,13 @@ class ScriptEditorWidget(QWidget):
         self.editor.document().modificationChanged.connect(self._on_modified_changed)
         layout.addWidget(self.editor)
 
-        # Output Area
-        layout.addWidget(QLabel("Output:"))
-        self.output_console = QTextEdit()
-        self.output_console.setReadOnly(True)
-        self.output_console.setMaximumHeight(150)
-        self.output_console.setStyleSheet(
-            "background-color: #f6f6f7; color: #1d7a3c; font-family: Consolas;"
-        )
-        layout.addWidget(self.output_console)
-
-        # Buttons
+        # Buttons -- just navigation; Run (F5)/Save (Ctrl+S) are the
+        # shared toolbar actions (see class docstring).
         btn_layout = QHBoxLayout()
-
-        btn_save = QPushButton("Save")
-        btn_save.clicked.connect(self.save_script)
-
-        btn_run = QPushButton("Run Script")
-        btn_run.setDefault(True)  # picks up the accent-blue QPushButton:default styling
-        btn_run.clicked.connect(self.run_script)
-
-        btn_clear = QPushButton("Clear Output")
-        btn_clear.clicked.connect(self.output_console.clear)
 
         btn_back = QPushButton("← Back to Diagram")
         btn_back.clicked.connect(lambda: self.main_window.show_diagram_editor())
 
-        btn_layout.addWidget(btn_save)
-        btn_layout.addWidget(btn_run)
-        btn_layout.addWidget(btn_clear)
         btn_layout.addStretch()
         btn_layout.addWidget(btn_back)
 
@@ -76,26 +63,20 @@ class ScriptEditorWidget(QWidget):
         if hasattr(self.main_window, "update_script_tab_title"):
             self.main_window.update_script_tab_title(self.file_path, modified)
 
+    def _status(self, message):
+        """Routine, non-blocking confirmation (saved/loaded/...), same
+        status-bar convention SceneManager uses for Diagram Save."""
+        if hasattr(self.main_window, "show_status"):
+            self.main_window.show_status(message)
+
     def save_script(self):
         try:
             with open(self.file_path, 'w', encoding='utf-8') as f:
                 f.write(self.editor.toPlainText())
             self.editor.document().setModified(False)
-            self.output_console.append(f"Saved: {self.file_path}")
+            self._status(f"Saved {os.path.basename(self.file_path)}")
         except Exception as e:
-            self.output_console.append(f"Error saving file: {e}")
-
-    def run_script(self):
-        """Execute the current script."""
-        script_content = self.editor.toPlainText()
-
-        result = self.script_manager.execute_script(script_content)
-        self.output_console.append(">>> Execution:")
-        self.output_console.append(result)
-        self.output_console.append("-" * 30)
-        # Scroll to bottom
-        sb = self.output_console.verticalScrollBar()
-        sb.setValue(sb.maximum())
+            QMessageBox.critical(self.main_window, "Error", f"Failed to save: {e}")
 
     def confirm_discard(self):
         """Ask before this tab is closed with unsaved edits still in the

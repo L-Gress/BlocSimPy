@@ -1,4 +1,5 @@
 from ..models import BlockModel
+from ..variables import resolve_params, get_active_variables
 from ._feedthrough_utils import feedthrough_pairs
 from typing import Dict, Any, List
 
@@ -10,10 +11,12 @@ class SubGraph(BlockModel):
     """
 
     BLOCK_INFO = {
-        "description": "Container block with custom interface/variables",
+        "description": "Container block that holds its own internal diagram",
         "parameters": "BlockName",
-        "formula": "Executes internal diagram with variable substitution ($VarName)",
-        "usage": "Double-click to enter. Ctrl+Double-click to edit variables.",
+        "formula": "Executes internal diagram; any internal block's param can be "
+                    "bound to a global variable (see engine/variables.py) the same "
+                    "way as any top-level block's",
+        "usage": "Double-click to step inside and build its internal diagram.",
         "category": "Structure"
     }
 
@@ -123,36 +126,29 @@ class SubGraph(BlockModel):
         self.execution_blocks = []
         self.execution_map = {}
 
-        # 1. Ensure Variable Defaults
-        for b_data in self.internal_blocks_data:
-            for p_val in b_data.get("params", {}).values():
-                if isinstance(p_val, str) and p_val.strip().startswith("$"):
-                    var_name = p_val.strip()[1:]
-                    if var_name and var_name not in self.params:
-                        self.params[var_name] = 0.0
+        # Global variable store to resolve any internal block's variable-
+        # bound params against (see engine/variables.py) -- the SAME store
+        # every top-level block resolves against (SimulationEngine.run()),
+        # not a private per-SubGraph table: an internal block binds
+        # directly to a real, globally-declared variable name, exactly
+        # like a top-level block would. Read fresh every reset() (not
+        # cached) so a variable's current value is picked up on each run.
+        variables = get_active_variables()
 
-        # 2. Instantiate
         for b_data in self.internal_blocks_data:
             b_type = b_data["type"]
             if b_type in BLOCK_REGISTRY:
                 instance = BLOCK_REGISTRY[b_type]()
-                instance.params = b_data["params"].copy()
-
-                # Variable Substitution
-                substituted = False
-                for p_key, p_val in instance.params.items():
-                    if isinstance(p_val, str) and p_val.strip().startswith("$"):
-                        var_name = p_val.strip()[1:]
-                        if var_name in self.params:
-                            instance.params[p_key] = self.params[var_name]
-                            substituted = True
-
-                if substituted:
-                    # In-place dict mutation above doesn't fire the
-                    # __setattr__ hook several blocks use to refresh cached
-                    # params (e.g. Gain._cached_gain). Reassign to retrigger
-                    # it now that substituted values are in place.
-                    instance.params = instance.params
+                # resolve_params()'s `missing` half is deliberately ignored
+                # here: SimulationEngine.check_diagram_detailed() already
+                # walks internal_blocks_data recursively and blocks the run
+                # on any undeclared reference before reset() is ever
+                # reached, so nothing here should still be missing in
+                # practice -- and if it is anyway, resolve_params() just
+                # leaves that one param as the unresolved reference dict
+                # rather than crashing.
+                resolved_params, _missing = resolve_params(b_data.get("params", {}), variables)
+                instance.params = dict(resolved_params)
 
                 if hasattr(instance, "reset"):
                     instance.reset()
@@ -212,16 +208,22 @@ class SubGraph(BlockModel):
                         self.outputs[p_name].value = b.inputs["in"].value
 
     def get_editor_dialog(self, parent=None):
-        """Custom dialog to edit SubGraph parameters and variables."""
+        """Dialog to edit this SubGraph's own settings (BlockName, optional
+        Mask Icon). Binding an INTERNAL block's parameter to a global
+        variable is done on that block's own parameter editor (the same
+        "bind to variable" control any top-level block's editor has -- see
+        gui/widgets/param_value_editor.py), after stepping inside this
+        SubGraph -- not here. There's no separate per-SubGraph "Custom
+        Variables" table anymore: an internal block binds directly to a
+        real, globally-declared variable name, exactly like a top-level
+        block would (see engine/variables.py)."""
         from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-                                       QTableWidget, QTableWidgetItem,
                                        QPushButton, QLabel, QLineEdit,
-                                       QDialogButtonBox, QHeaderView, QMessageBox,
-                                       QFileDialog)
+                                       QDialogButtonBox, QFileDialog)
 
         dialog = QDialog(parent)
-        dialog.setWindowTitle("SubGraph Interface Editor")
-        dialog.resize(500, 500)
+        dialog.setWindowTitle("SubGraph Settings")
+        dialog.resize(420, 180)
 
         layout = QVBoxLayout(dialog)
 
@@ -263,47 +265,7 @@ class SubGraph(BlockModel):
         btn_clear_icon.clicked.connect(on_clear_icon)
 
         layout.addLayout(form_layout)
-
-        # --- Section 2: Variables ---
-        layout.addWidget(QLabel("<b>Custom Variables:</b>"))
-        layout.addWidget(QLabel("Define variables here. Use them inside as <i>$VariableName</i>."))
-
-        table = QTableWidget()
-        table.setColumnCount(2)
-        table.setHorizontalHeaderLabels(["Name", "Value"])
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(table)
-
-        def add_row(key="", val=""):
-            row = table.rowCount()
-            table.insertRow(row)
-            table.setItem(row, 0, QTableWidgetItem(str(key)))
-            table.setItem(row, 1, QTableWidgetItem(str(val)))
-
-        # Populate
-        reserved = ["BlockName", "MaskIconPath"]
-        for k, v in self.params.items():
-            if k in reserved: continue
-            add_row(k, v)
-
-        # --- Buttons ---
-        btn_layout = QHBoxLayout()
-        btn_add = QPushButton("Add Variable")
-        btn_remove = QPushButton("Remove Selected")
-        btn_layout.addWidget(btn_add)
-        btn_layout.addWidget(btn_remove)
-        layout.addLayout(btn_layout)
-
-        def on_add():
-            add_row("NewVar", "0.0")
-
-        def on_remove():
-            rows = sorted(set(index.row() for index in table.selectedIndexes()), reverse=True)
-            for r in rows:
-                table.removeRow(r)
-
-        btn_add.clicked.connect(on_add)
-        btn_remove.clicked.connect(on_remove)
+        layout.addStretch()
 
         # --- Dialog Buttons ---
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -314,29 +276,9 @@ class SubGraph(BlockModel):
         original_accept = dialog.accept
 
         def save_and_accept():
-            new_params = {}
+            new_params = dict(self.params)
             new_params["BlockName"] = name_edit.text().strip()
             new_params["MaskIconPath"] = icon_edit.text().strip()
-
-            for i in range(table.rowCount()):
-                key_item = table.item(i, 0)
-                val_item = table.item(i, 1)
-
-                if key_item and val_item:
-                    key = key_item.text().strip()
-                    val_str = val_item.text().strip()
-
-                    if not key: continue
-                    if key in reserved:
-                        QMessageBox.warning(dialog, "Invalid Name", f"'{key}' is reserved.")
-                        return
-
-                    # Try float conversion
-                    try:
-                        val = float(val_str)
-                    except ValueError:
-                        val = val_str
-                    new_params[key] = val
 
             self.params = new_params
             if hasattr(self, "_update_label"):

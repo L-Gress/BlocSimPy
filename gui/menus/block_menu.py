@@ -27,7 +27,7 @@ class BlockContextMenu:
         is_subgraph = block_ui.model.__class__.__name__ == "SubGraph"
         
         if is_subgraph:
-            action_params = menu.addAction("Interface (Ctrl+DblClick)")
+            action_params = menu.addAction("Settings (Ctrl+DblClick)")
             action_enter = menu.addAction("Enter Subsystem (DblClick)")
         else:
             action_params = menu.addAction("Parameters (DblClick)")

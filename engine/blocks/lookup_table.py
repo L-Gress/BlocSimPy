@@ -1,19 +1,42 @@
 from ..models import BlockModel
+from ..variables import variable_ref_name, make_variable_ref
 import numpy as np
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton,
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
+                               QPushButton, QCheckBox, QLabel, QLineEdit,
                                QDialogButtonBox, QFileDialog, QMessageBox)
 from PySide6.QtCore import Qt
 import csv
 
 
 class LookupTableDialog(QDialog):
-    """Dialog to edit LookupTable data with dynamic rows and CSV import."""
+    """Dialog to edit LookupTable data with dynamic rows and CSV import, or
+    -- via "Bind entire table to a variable" -- bind the whole X/Y table to
+    a global variable instead (see engine/variables.py), e.g. one holding a
+    list of (x, y) pairs built by a Script. Resolution doesn't care what
+    shape a bound variable's value is, so this needs no engine changes,
+    same as StateSpace's matrix/vector params. Just type the variable's
+    name -- no picker -- same as ParamValueEditor."""
     def __init__(self, parent=None, table_data=None):
         super().__init__(parent)
+
         self.setWindowTitle("Edit Lookup Table")
         self.resize(500, 400)
 
         layout = QVBoxLayout(self)
+
+        bound_name = variable_ref_name(table_data)
+
+        bind_row = QHBoxLayout()
+        self.bind_check = QCheckBox("Bind entire table to a global variable named:")
+        self.bind_check.setChecked(bound_name is not None)
+        bind_row.addWidget(self.bind_check)
+        self.var_name_edit = QLineEdit(bound_name or "")
+        bind_row.addWidget(self.var_name_edit, 1)
+        layout.addLayout(bind_row)
+        layout.addWidget(QLabel(
+            "The variable's value should be a list of (x, y) pairs -- e.g. "
+            "Curve = [(0, 0), (1, 1), (2, 4)]."
+        ))
 
         # Table widget for editing rows
         self.table_widget = QTableWidget()
@@ -22,7 +45,7 @@ class LookupTableDialog(QDialog):
         layout.addWidget(self.table_widget)
 
         # Load data or create empty table
-        if table_data:
+        if bound_name is None and table_data:
             self.load_table_data(table_data)
         else:
             self.add_row()
@@ -43,12 +66,21 @@ class LookupTableDialog(QDialog):
         btn_layout.addWidget(btn_load_csv)
 
         layout.addLayout(btn_layout)
+        self._row_editors = [self.table_widget, btn_add, btn_remove, btn_load_csv]
+
+        self.bind_check.toggled.connect(self._on_bind_toggled)
+        self._on_bind_toggled(self.bind_check.isChecked())
 
         # OK/Cancel buttons
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
+
+    def _on_bind_toggled(self, checked):
+        self.var_name_edit.setVisible(checked)
+        for widget in self._row_editors:
+            widget.setVisible(not checked)
 
     def load_table_data(self, table_data):
         """Load table data into the widget."""
@@ -108,6 +140,13 @@ class LookupTableDialog(QDialog):
                 pass
         return data if data else [(0.0, 0.0)]
 
+    def get_value(self):
+        """The "Table" param's new value -- a variable reference if bound
+        (see engine/variables.py), else the edited row data."""
+        if self.bind_check.isChecked():
+            return make_variable_ref(self.var_name_edit.text().strip())
+        return self.get_table_data()
+
 
 class LookupTable(BlockModel):
     """Linear interpolation 1D with editable table and CSV support."""
@@ -158,7 +197,7 @@ class LookupTable(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            self.params["Table"] = dialog.get_table_data()
+            self.params["Table"] = dialog.get_value()
             original_accept()
 
         dialog.accept = accept_with_save

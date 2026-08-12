@@ -1,4 +1,5 @@
 from ..models import BlockModel
+from ..variables import display_value
 
 class IfElse(BlockModel):
     """
@@ -45,8 +46,8 @@ class IfElse(BlockModel):
             # Format integer thresholds cleanly (e.g. "0" instead of "0.0")
             s_thresh = str(int(thresh)) if thresh.is_integer() else str(thresh)
             self.name = f"if cond ≥ {s_thresh}"
-        except:
-            self.name = "If / Else"
+        except (TypeError, ValueError, KeyError):
+            self.name = f"if cond ≥ {display_value(self.params.get('Threshold'))}"
 
     def compute(self, t, dt, context=None):
         # Get Threshold
@@ -72,7 +73,8 @@ class IfElse(BlockModel):
             self._update_label()
 
     def get_editor_dialog(self, parent=None):
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDialogButtonBox
+        from gui.widgets.param_value_editor import make_row_editor, row_editor_value, PARSE_ERROR
 
         dialog = QDialog(parent)
         dialog.setWindowTitle("Edit If/Else Threshold")
@@ -80,9 +82,9 @@ class IfElse(BlockModel):
         widgets = {}
 
         for key, val in self.params.items():
-            le = QLineEdit(str(val))
-            layout.addRow(key, le)
-            widgets[key] = le
+            editor = make_row_editor(key, val)
+            layout.addRow(key, editor)
+            widgets[key] = editor
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(dialog.accept)
@@ -92,12 +94,11 @@ class IfElse(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            for key, le in widgets.items():
-                try:
-                    self.params[key] = float(le.text())
-                except ValueError:
-                    self.params[key] = le.text()
-            
+            for key, editor in widgets.items():
+                value = row_editor_value(editor)
+                if value is not PARSE_ERROR:
+                    self.params[key] = value
+
             self._update_label()
             original_accept()
 

@@ -78,7 +78,8 @@ class PID(BlockModel):
 
     def get_editor_dialog(self, parent=None):
         """Editor dialog for PID parameters."""
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QLabel
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDialogButtonBox, QLabel
+        from gui.widgets.param_value_editor import ParamValueEditor
 
         dialog = QDialog(parent)
         dialog.setWindowTitle(f"Edit {self.name}")
@@ -87,21 +88,17 @@ class PID(BlockModel):
         # Instruction label
         info = QLabel(
             "PID Controller Parameters:\n"
-            "Enter numeric values for each gain.\n"
+            "Enter a numeric value for each gain, or type a variable name "
+            "to bind it to a global variable.\n"
             "u(t) = Kp*e(t) + Ki*∫e(t)dt + Kd*de(t)/dt"
         )
         info.setWordWrap(True)
         layout.addRow(info)
 
         # Parameter input fields
-        kp_edit = QLineEdit(str(self.params.get("Kp", 1.0)))
-        kp_edit.setPlaceholderText("Proportional gain (e.g. 1.0)")
-
-        ki_edit = QLineEdit(str(self.params.get("Ki", 0.0)))
-        ki_edit.setPlaceholderText("Integral gain (e.g. 0.1)")
-
-        kd_edit = QLineEdit(str(self.params.get("Kd", 0.0)))
-        kd_edit.setPlaceholderText("Derivative gain (e.g. 0.5)")
+        kp_edit = ParamValueEditor(self.params.get("Kp", 1.0))
+        ki_edit = ParamValueEditor(self.params.get("Ki", 0.0))
+        kd_edit = ParamValueEditor(self.params.get("Kd", 0.0))
 
         layout.addRow("Kp (Proportional):", kp_edit)
         layout.addRow("Ki (Integral):", ki_edit)
@@ -117,15 +114,11 @@ class PID(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            try:
-                self.params["Kp"] = float(kp_edit.text())
-                self.params["Ki"] = float(ki_edit.text())
-                self.params["Kd"] = float(kd_edit.text())
-                self.reset()
-                original_accept()
-            except ValueError:
-                from PySide6.QtWidgets import QMessageBox
-                QMessageBox.warning(dialog, "Invalid Input", "Please enter valid numeric values.")
+            self.params["Kp"] = kp_edit.get_value()
+            self.params["Ki"] = ki_edit.get_value()
+            self.params["Kd"] = kd_edit.get_value()
+            self.reset()
+            original_accept()
 
         dialog.accept = accept_with_save
         return dialog

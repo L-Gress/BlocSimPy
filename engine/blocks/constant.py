@@ -1,4 +1,5 @@
 from ..models import BlockModel
+from ..variables import display_value
 
 class Constant(BlockModel):
     """Outputs a constant value."""
@@ -28,11 +29,7 @@ class Constant(BlockModel):
 
     def _update_label(self):
         """Format the name based on the current constant value."""
-        try:
-            val = self.params.get("Value", 1.0)
-            self.name = f"{val}"
-        except:
-            self.name = f"{self.params.get('Value', '?')}"
+        self.name = display_value(self.params.get("Value", 1.0))
 
     def compute(self, t, dt, context=None):
         self.outputs["out"].value = self._cached_value
@@ -50,7 +47,8 @@ class Constant(BlockModel):
 
     def get_editor_dialog(self, parent=None):
         """Return generic parameter editor dialog."""
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDialogButtonBox
+        from gui.widgets.param_value_editor import make_row_editor, row_editor_value, PARSE_ERROR
 
         dialog = QDialog(parent)
         dialog.setWindowTitle(f"Edit {self.name}")
@@ -58,9 +56,9 @@ class Constant(BlockModel):
         widgets = {}
 
         for key, val in self.params.items():
-            le = QLineEdit(str(val))
-            layout.addRow(key, le)
-            widgets[key] = le
+            editor = make_row_editor(key, val)
+            layout.addRow(key, editor)
+            widgets[key] = editor
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(dialog.accept)
@@ -70,14 +68,11 @@ class Constant(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            for key, le in widgets.items():
-                new_str = le.text()
-                try:
-                    # Try to convert to float, otherwise keep as string
-                    self.params[key] = float(new_str)
-                except ValueError:
-                    self.params[key] = new_str
-            
+            for key, editor in widgets.items():
+                value = row_editor_value(editor)
+                if value is not PARSE_ERROR:
+                    self.params[key] = value
+
             # Update label and refresh the cached value on manual edit
             self._update_label()
             self._cache_params()

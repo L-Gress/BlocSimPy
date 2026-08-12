@@ -122,6 +122,14 @@ class MainWindow(QMainWindow):
         # Store reference to the User Space widget for access by scene_manager
         self.user_space_widget = self.dock_manager.user_space_widget
 
+        # --- Console Dock --- (hidden by default, see create_console_dock())
+        console_dock = self.dock_manager.create_console_dock()
+        self.addDockWidget(Qt.BottomDockWidgetArea, console_dock)
+
+        # --- Global Variables Dock --- (hidden by default, see create_globals_dock())
+        globals_dock = self.dock_manager.create_globals_dock()
+        self.addDockWidget(Qt.RightDockWidgetArea, globals_dock)
+
         # Starts with NO diagram tab open -- an empty workspace rather than
         # an unwanted blank "Untitled" every launch. Diagram-dependent
         # actions (Save, Undo, Cut, Run, ...) start disabled to match;
@@ -262,8 +270,23 @@ class MainWindow(QMainWindow):
             self._active_diagram = self._diagrams[-1] if self._diagrams else None
         if not self._diagrams:
             self.toolbar_manager.set_diagram_actions_enabled(False)
+            # set_diagram_actions_enabled(False) just disabled action_run/
+            # action_save too, but those are also usable for a Script tab
+            # (see active_script_widget()) -- re-enable them if one's
+            # still open even though the last diagram just closed.
+            self._update_run_save_enabled()
         doc.view.deleteLater()
         doc.scene.deleteLater()
+
+    def _update_run_save_enabled(self):
+        """action_run/action_save are usable whenever EITHER a diagram OR
+        a Script tab exists (see active_script_widget()) -- unlike the
+        rest of set_diagram_actions_enabled()'s list, which only makes
+        sense with a diagram open. Called whenever a diagram or Script tab
+        opens or closes."""
+        enabled = bool(self._diagrams) or bool(self._script_tabs)
+        self.toolbar_manager.action_run.setEnabled(enabled)
+        self.toolbar_manager.action_save.setEnabled(enabled)
 
     def show_diagram_editor(self):
         """Switch focus to the currently-active diagram tab. Doesn't close
@@ -272,6 +295,17 @@ class MainWindow(QMainWindow):
         editor."""
         if self._active_diagram is not None:
             self.central_tabs.setCurrentWidget(self._active_diagram.view)
+
+    def active_script_widget(self):
+        """The ScriptEditorWidget for whichever Script tab is currently
+        focused, or None if a Diagram/Simulation tab (or nothing) is
+        active -- lets the shared Run/Save toolbar actions dispatch to the
+        right target (see ToolbarManager's Run/Stop toggle and Save
+        action) instead of each Script tab needing its own Run/Save
+        buttons."""
+        from .dialogs import ScriptEditorWidget
+        widget = self.central_tabs.currentWidget()
+        return widget if isinstance(widget, ScriptEditorWidget) else None
 
     def _on_current_tab_changed(self, index):
         widget = self.central_tabs.widget(index)
@@ -292,14 +326,13 @@ class MainWindow(QMainWindow):
             if not doc.scene_manager.confirm_discard_changes():
                 return
             self._remove_diagram_document(doc)
-            if not self._diagrams:
-                self.open_diagram_tab()  # always keep at least one open
             return
 
         if hasattr(widget, "confirm_discard") and not widget.confirm_discard():
             return
 
         self.central_tabs.removeTab(index)
+        was_script = widget in self._script_tabs.values()
         for path, w in list(self._script_tabs.items()):
             if w is widget:
                 del self._script_tabs[path]
@@ -309,6 +342,8 @@ class MainWindow(QMainWindow):
         if self._last_sim_tab_widget is widget:
             self._last_sim_tab_widget = None
         widget.deleteLater()
+        if was_script:
+            self._update_run_save_enabled()
 
     # --- Menu bar ---------------------------------------------------------
 
@@ -348,6 +383,8 @@ class MainWindow(QMainWindow):
         view_menu.addAction(tm.action_zoom_fit)
         view_menu.addSeparator()
         view_menu.addAction(tm.action_toggle_lib)
+        view_menu.addAction(tm.action_toggle_console)
+        view_menu.addAction(tm.action_toggle_globals)
         view_menu.addAction(tm.action_up)
 
         sim_menu = menu_bar.addMenu("&Simulation")
@@ -357,6 +394,8 @@ class MainWindow(QMainWindow):
 
         tools_menu = menu_bar.addMenu("&Tools")
         tools_menu.addAction(tm.action_save_subgraph)
+        tools_menu.addSeparator()
+        tools_menu.addAction(tm.action_clear_globals)
 
         help_menu = menu_bar.addMenu("&Help")
         help_menu.addAction(tm.action_help)
@@ -439,6 +478,7 @@ class MainWindow(QMainWindow):
         self._script_tabs[file_path] = widget
         index = self.central_tabs.addTab(widget, os.path.basename(file_path))
         self.central_tabs.setCurrentIndex(index)
+        self._update_run_save_enabled()
 
     def update_script_tab_title(self, file_path, modified):
         """Reflect unsaved edits in the tab label (e.g. 'demo.py •'),

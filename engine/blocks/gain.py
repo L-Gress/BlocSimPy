@@ -1,4 +1,5 @@
 from ..models import BlockModel
+from ..variables import display_value
 
 class Gain(BlockModel):
     """Gain block - multiplies input by a constant factor."""
@@ -29,11 +30,7 @@ class Gain(BlockModel):
 
     def _update_label(self):
         """Format the name based on the current gain value."""
-        try:
-            val = self.params.get("Gain", 1.0)   
-            self.name = f"K = {val}"
-        except:
-            self.name = f"K = {self.params.get('Gain', '?')}"
+        self.name = f"K = {display_value(self.params.get('Gain', 1.0))}"
 
     def compute(self, t, dt, context=None):
         u = self.inputs["in"].value if "in" in self.inputs else 0.0
@@ -58,7 +55,8 @@ class Gain(BlockModel):
         self._cache_params()
 
     def get_editor_dialog(self, parent=None):
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QMessageBox
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDialogButtonBox
+        from gui.widgets.param_value_editor import make_row_editor, row_editor_value, PARSE_ERROR
 
         dialog = QDialog(parent)
         dialog.setWindowTitle("Edit Gain")
@@ -66,9 +64,9 @@ class Gain(BlockModel):
         widgets = {}
 
         for key, val in self.params.items():
-            le = QLineEdit(str(val))
-            layout.addRow(key, le)
-            widgets[key] = le
+            editor = make_row_editor(key, val)
+            layout.addRow(key, editor)
+            widgets[key] = editor
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(dialog.accept)
@@ -78,20 +76,10 @@ class Gain(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            # Validate first, without touching self.params, so a bad value
-            # in one field can't partially apply before we bail out.
-            parsed = {}
-            for key, le in widgets.items():
-                try:
-                    parsed[key] = float(le.text())
-                except ValueError:
-                    QMessageBox.warning(
-                        dialog, "Invalid Value",
-                        f"'{key}' must be a number (got '{le.text()}')."
-                    )
-                    return
-
-            self.params.update(parsed)
+            for key, editor in widgets.items():
+                value = row_editor_value(editor)
+                if value is not PARSE_ERROR:
+                    self.params[key] = value
 
             # Update label and refresh the cached gain on manual edit
             self._update_label()

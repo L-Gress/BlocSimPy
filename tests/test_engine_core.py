@@ -1,5 +1,6 @@
 """Tests for the core simulation engine: execution ordering and batch running."""
 import unittest
+import numpy as np
 
 from engine.simulation.executor import ExecutionOrdering, AlgebraicLoopError
 from engine.simulation.engine import SimulationEngine
@@ -13,6 +14,8 @@ from engine.blocks.transfer_function import TransferFunction
 from engine.blocks.state_space import StateSpace
 from engine.blocks.discrete_transfer_function import DiscreteTransferFunction
 from engine.blocks.subgraph import SubGraph
+
+from engine.variables import make_variable_ref, is_variable_ref, get_active_variables, set_active_variables
 
 from conftest import connect, set_params
 
@@ -401,6 +404,132 @@ class TestSimulationEngineRun(unittest.TestCase):
 
         self.assertTrue(result.success, result.error_message)
         self.assertAlmostEqual(integ.state, 1.0, places=6)
+
+
+class TestSimulationEngineVariables(unittest.TestCase):
+    """A block param bound via make_variable_ref() (typing a name into a
+    param editor / a script's var()) resolves against SimulationEngine.variables -- see
+    engine/variables.py, which replaced the old "$VarName"-prefixed-string
+    convention."""
+
+    def setUp(self):
+        self._saved = get_active_variables()
+
+    def tearDown(self):
+        set_active_variables(self._saved)
+
+    def test_configure_registers_and_resolves_variables(self):
+        c = Constant()
+        set_params(c, Value=3.0)
+        g = Gain()
+        g.params["Gain"] = make_variable_ref("K")
+        connect(g, "in", c)
+        scope = Scope()
+        connect(scope, "in1", g)
+
+        engine = SimulationEngine()
+        engine.configure([c, g, scope], duration=0.05, dt=0.01, variables={"K": 2.0})
+        result = engine.run()
+
+        self.assertTrue(result.success, result.error_message)
+        data = result.scope_data["Scope"]["data"]
+        self.assertTrue((data == 6.0).all())
+
+    def test_design_time_param_unchanged_after_run(self):
+        # run() must restore the live block's params (reference intact)
+        # after the run, not leave the resolved literal baked in --
+        # otherwise the binding would only ever work for one run.
+        g = Gain()
+        g.params["Gain"] = make_variable_ref("K")
+        c = Constant()
+        connect(g, "in", c)
+
+        engine = SimulationEngine()
+        engine.configure([c, g], duration=0.05, dt=0.01, variables={"K": 5.0})
+        engine.run()
+
+        self.assertTrue(is_variable_ref(g.params["Gain"]))
+
+    def test_check_diagram_flags_undeclared_top_level_variable(self):
+        g = Gain()
+        g.params["Gain"] = make_variable_ref("Missing")
+        c = Constant()
+        connect(g, "in", c)
+
+        engine = SimulationEngine()
+        engine.configure([c, g], duration=1.0, dt=0.1, variables={})
+        issues = engine.check_diagram()
+
+        self.assertTrue(any(
+            i.startswith("ERROR:") and "Missing" in i and "Gain" in i for i in issues
+        ))
+
+    def test_check_diagram_flags_undeclared_variable_nested_in_subgraph(self):
+        sg = SubGraph()
+        sg.internal_blocks_data = [
+            {"id": "in1", "type": "InputPort", "params": {"PortName": "In"}},
+            {"id": "gain1", "type": "Gain", "params": {"Gain": make_variable_ref("Deep")}},
+            {"id": "out1", "type": "OutputPort", "params": {"PortName": "Out"}},
+        ]
+        sg.internal_connections_data = []
+        sg.sync_ports_from_data()
+
+        engine = SimulationEngine()
+        engine.configure([sg], duration=1.0, dt=0.1, variables={})
+        issues = engine.check_diagram()
+
+        self.assertTrue(any(i.startswith("ERROR:") and "Deep" in i for i in issues))
+
+    def test_check_diagram_passes_when_variable_declared(self):
+        g = Gain()
+        g.params["Gain"] = make_variable_ref("K")
+        c = Constant()
+        connect(g, "in", c)
+
+        engine = SimulationEngine()
+        engine.configure([c, g], duration=1.0, dt=0.1, variables={"K": 1.0})
+        issues = engine.check_diagram()
+
+        self.assertFalse(any(i.startswith("ERROR:") for i in issues))
+
+    def test_matrix_valued_param_can_bind_to_array_variable(self):
+        # Not just scalars: resolve_params() substitutes whatever the
+        # variable's value IS -- here a whole 1x1 matrix -- straight into
+        # the param, and StateSpace's own matrix handling (already tolerant
+        # of any numpy-convertible input) takes it from there. No engine
+        # code needed to know this is "a matrix" vs. a plain float.
+        sg = StateSpace()
+        sg.params["A"] = make_variable_ref("Amat")
+        sg.params["B"] = [1.0]
+        sg.params["C"] = [1.0]
+        sg.params["D"] = 0.0
+        c = Constant()
+        set_params(c, Value=1.0)
+        connect(sg, "in", c)
+
+        engine = SimulationEngine()
+        engine.configure([c, sg], duration=0.05, dt=0.01, variables={"Amat": [[-2.0]]})
+        result = engine.run()
+
+        self.assertTrue(result.success, result.error_message)
+        self.assertTrue(np.allclose(sg._A, [[-2.0]]))
+        # Design-time param is untouched -- still the reference, not a
+        # baked-in number -- so a later run with a different value works.
+        self.assertTrue(is_variable_ref(sg.params["A"]))
+
+    def test_vector_valued_param_can_bind_to_array_variable(self):
+        tf = TransferFunction()
+        tf.params["Numerator"] = make_variable_ref("Num")
+        tf.params["Denominator"] = [1.0, 1.0]
+        c = Constant()
+        connect(tf, "in", c)
+
+        engine = SimulationEngine()
+        engine.configure([c, tf], duration=0.05, dt=0.01, variables={"Num": [2.0, 0.0]})
+        result = engine.run()
+
+        self.assertTrue(result.success, result.error_message)
+        self.assertTrue(is_variable_ref(tf.params["Numerator"]))
 
 
 if __name__ == "__main__":

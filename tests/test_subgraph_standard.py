@@ -1,9 +1,12 @@
 """Tests for SubGraph's synchronous execution: I/O bridging and variable
-substitution ($VarName).
+binding (see engine/variables.py -- an internal block's param can be bound
+to a name declared in the global variable store, the same mechanism a
+top-level block's param uses).
 """
 import unittest
 
 from engine.blocks.subgraph import SubGraph
+from engine.variables import make_variable_ref, set_active_variables, get_active_variables
 
 
 class TestSubGraphStandardMode(unittest.TestCase):
@@ -150,30 +153,53 @@ class TestSubGraphStandardMode(unittest.TestCase):
         sg.compute(0.1, 0.01)
         self.assertAlmostEqual(sg.outputs["Out"].value, 20.0)
 
-    def test_variable_substitution_seeds_default_and_applies_to_internal_params(self):
-        sg = SubGraph()
-        sg.params["Execution Mode"] = "Standard"
-        sg.internal_blocks_data = [
-            {"id": "in1", "type": "InputPort", "params": {"PortName": "In"}},
-            {"id": "gain1", "type": "Gain", "params": {"Gain": "$MyGain"}},
-            {"id": "out1", "type": "OutputPort", "params": {"PortName": "Out"}},
-        ]
-        sg.internal_connections_data = [
-            {"from_block_id": "in1", "from_port": "out", "to_block_id": "gain1", "to_port": "in"},
-            {"from_block_id": "gain1", "from_port": "out", "to_block_id": "out1", "to_port": "in"},
-        ]
-        sg.sync_ports_from_data()
+    def test_internal_block_param_resolves_against_global_variables(self):
+        # An internal block's param bound via make_variable_ref() (typing a
+        # name into a param editor / var() in a script) resolves against the SAME global
+        # variable store any top-level block would -- not a private
+        # per-SubGraph table -- read fresh via get_active_variables() every
+        # reset() (see _instantiate_internal_blocks()).
+        saved = get_active_variables()
+        try:
+            set_active_variables({})
+            sg = SubGraph()
+            sg.internal_blocks_data = [
+                {"id": "in1", "type": "InputPort", "params": {"PortName": "In"}},
+                {"id": "gain1", "type": "Gain", "params": {"Gain": make_variable_ref("MyGain")}},
+                {"id": "out1", "type": "OutputPort", "params": {"PortName": "Out"}},
+            ]
+            sg.internal_connections_data = [
+                {"from_block_id": "in1", "from_port": "out", "to_block_id": "gain1", "to_port": "in"},
+                {"from_block_id": "gain1", "from_port": "out", "to_block_id": "out1", "to_port": "in"},
+            ]
+            sg.sync_ports_from_data()
 
-        # reset() should have discovered "$MyGain" and seeded a default parameter.
-        sg.reset()
-        self.assertIn("MyGain", sg.params)
+            # Undeclared: resolve_params() leaves the reference in place
+            # rather than crashing or silently defaulting to 0.0 (pre-flight
+            # validation -- see SimulationEngine.check_diagram_detailed() --
+            # is what's expected to catch this before a real run).
+            sg.reset()
+            sg.inputs["In"].value = 2.0
+            sg.compute(0.0, 0.01)
+            self.assertAlmostEqual(sg.outputs["Out"].value, 0.0)
 
-        # Explicitly set the variable and confirm it substitutes into the internal Gain.
-        sg.params["MyGain"] = 4.0
-        sg.reset()
-        sg.inputs["In"].value = 2.0
-        sg.compute(0.0, 0.01)
-        self.assertAlmostEqual(sg.outputs["Out"].value, 8.0)
+            # Declaring the variable and re-running picks up its value.
+            get_active_variables()["MyGain"] = 4.0
+            sg.reset()
+            sg.inputs["In"].value = 2.0
+            sg.compute(0.0, 0.01)
+            self.assertAlmostEqual(sg.outputs["Out"].value, 8.0)
+
+            # The SubGraph's OWN params (the design-time internal_blocks_data
+            # entry) are untouched by resolution -- still the reference, not
+            # a baked-in number -- so editing the variable and re-running
+            # again picks up the NEW value too.
+            get_active_variables()["MyGain"] = 10.0
+            sg.reset()
+            sg.compute(0.0, 0.01)
+            self.assertAlmostEqual(sg.outputs["Out"].value, 20.0)
+        finally:
+            set_active_variables(saved)
 
     def test_reset_reinstantiates_internal_blocks(self):
         sg = self._build_gain_subgraph()

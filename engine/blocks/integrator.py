@@ -80,16 +80,17 @@ class Integrator(BlockModel):
         self.state = self._cached_ic
 
     def get_editor_dialog(self, parent=None):
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDialogButtonBox
+        from gui.widgets.param_value_editor import ParamValueEditor
 
         dialog = QDialog(parent)
         dialog.setWindowTitle("Edit Integrator")
         layout = QFormLayout(dialog)
-        
+
         # Initial Condition Input
         val = self.params.get("InitialCondition", 0.0)
-        le = QLineEdit(str(val))
-        layout.addRow("Initial Condition:", le)
+        editor = ParamValueEditor(val)
+        layout.addRow("Initial Condition:", editor)
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(dialog.accept)
@@ -99,10 +100,7 @@ class Integrator(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            try:
-                self.params["InitialCondition"] = float(le.text())
-            except ValueError:
-                self.params["InitialCondition"] = 0.0
+            self.params["InitialCondition"] = editor.get_value()
 
             # Refresh the cached initial condition, then reset immediately so
             # the change takes effect if simulation is stopped.

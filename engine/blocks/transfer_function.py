@@ -163,7 +163,8 @@ class TransferFunction(BlockModel):
         self.states = [0.0] * len(self.states)
 
     def get_editor_dialog(self, parent=None):
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QLabel
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDialogButtonBox, QLabel
+        from gui.widgets.param_value_editor import ParamValueEditor, PARSE_ERROR
 
         dialog = QDialog(parent)
         # Since self.name is now multi-line, we assume the window title can handle it or we strip it
@@ -172,13 +173,21 @@ class TransferFunction(BlockModel):
 
         info = QLabel(
             "Continuous-time Transfer Function.\n"
-            "Format: Coefficients of 's' in descending order."
+            "Format: Coefficients of 's' in descending order, comma-separated.\n"
+            "Either can instead be a variable name, binding it to a global "
+            "variable holding the whole coefficient list."
         )
         info.setWordWrap(True)
         layout.addRow(info)
 
-        num_edit = QLineEdit(", ".join(str(x) for x in self.params.get("Numerator", [1.0])))
-        den_edit = QLineEdit(", ".join(str(x) for x in self.params.get("Denominator", [1.0])))
+        def format_coeffs(value):
+            return ", ".join(str(x) for x in value)
+
+        def parse_coeffs_text(text):
+            return [float(x.strip()) for x in text.split(',') if x.strip()]
+
+        num_edit = ParamValueEditor(self.params.get("Numerator", [1.0]), parse=parse_coeffs_text, format_fn=format_coeffs)
+        den_edit = ParamValueEditor(self.params.get("Denominator", [1.0]), parse=parse_coeffs_text, format_fn=format_coeffs)
 
         layout.addRow("Numerator (b):", num_edit)
         layout.addRow("Denominator (a):", den_edit)
@@ -191,9 +200,12 @@ class TransferFunction(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            self.params["Numerator"] = [float(x.strip()) for x in num_edit.text().split(',') if x.strip()]
-            self.params["Denominator"] = [float(x.strip()) for x in den_edit.text().split(',') if x.strip()]
-            self._cache_key = None 
+            for key, editor in (("Numerator", num_edit), ("Denominator", den_edit)):
+                value = editor.get_value()
+                if value is not PARSE_ERROR:
+                    self.params[key] = value
+
+            self._cache_key = None
             self.reset()
             # --- MODIFICATION: Update visual label on save ---
             self._update_label()

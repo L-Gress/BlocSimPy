@@ -212,6 +212,16 @@ def _draw_run(p):
     p.drawPath(path)
 
 
+@_register("stop")
+def _draw_stop(p):
+    # Pairs with "run": same fill/no-pen treatment, a plain filled square
+    # standing in for the play triangle -- what the Run button turns into
+    # while a simulation/Script is running (see ToolbarManager._set_running()).
+    p.setPen(Qt.NoPen)
+    p.setBrush(_ACCENT)
+    p.drawRoundedRect(QRectF(7, 7, 10, 10), 1.5, 1.5)
+
+
 @_register("inspector")
 def _draw_inspector(p):
     p.setPen(Qt.NoPen)
@@ -332,6 +342,59 @@ def _draw_duplicate(p):
     p.setPen(_pen())
     p.drawRoundedRect(QRectF(3, 7, 12, 14), 2, 2)
     p.drawRoundedRect(QRectF(9, 3, 12, 14), 2, 2)
+
+
+@_register("console")
+def _draw_console(p):
+    # Classic terminal glyph: a ">" prompt chevron plus a cursor bar,
+    # inside a rounded frame.
+    p.setPen(_pen())
+    p.drawRoundedRect(QRectF(3, 4.5, 18, 15), 2.5, 2.5)
+    chevron = QPainterPath()
+    chevron.moveTo(6.5, 9.5); chevron.lineTo(10.5, 12.5); chevron.lineTo(6.5, 15.5)
+    p.drawPath(chevron)
+    p.drawLine(QPointF(12.5, 15.5), QPointF(17, 15.5))
+
+
+def _globals_table_path():
+    # Shared base glyph for "globals"/"clear_globals": a mini 2-col x
+    # 3-row table, standing in for a name/value variable list (same idea
+    # as the "inspector" bars standing in for a data plot).
+    path = QPainterPath()
+    path.addRoundedRect(QRectF(3.5, 4.5, 17, 15), 2, 2)
+    path.moveTo(11, 4.5); path.lineTo(11, 19.5)
+    path.moveTo(3.5, 9.5); path.lineTo(20.5, 9.5)
+    path.moveTo(3.5, 14.5); path.lineTo(20.5, 14.5)
+    return path
+
+
+@_register("globals")
+def _draw_globals(p):
+    p.setPen(_pen())
+    p.drawPath(_globals_table_path())
+
+
+@_register("clear_globals")
+def _draw_clear_globals(p):
+    # Same table glyph as "globals", plus an accent strike-through --
+    # mirrors how "project" reuses "open" plus a badge to signal "same
+    # thing, destructive/alternate action".
+    p.setPen(_pen())
+    p.drawPath(_globals_table_path())
+    p.setPen(_pen(_ACCENT, width=2.2))
+    p.drawLine(QPointF(2.5, 21), QPointF(21.5, 2.5))
+
+
+@_register("library")
+def _draw_library(p):
+    # Bookshelf glyph: a baseline shelf with three book spines of
+    # different heights standing on it -- the block palette/User Space
+    # dock this toggles is literally a shelf of reusable pieces.
+    p.setPen(_pen())
+    p.drawLine(QPointF(3.5, 20), QPointF(20.5, 20))
+    p.drawRoundedRect(QRectF(4.5, 7, 4, 13), 1, 1)
+    p.drawRoundedRect(QRectF(10, 4, 4, 16), 1, 1)
+    p.drawRoundedRect(QRectF(15.5, 9, 4, 11), 1, 1)
 
 
 def icon(name, color=None):

@@ -107,7 +107,8 @@ class DiscreteTransferFunction(BlockModel):
             self.name = "DiscreteTF"
 
     def get_editor_dialog(self, parent=None):
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QLabel
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDialogButtonBox, QLabel
+        from gui.widgets.param_value_editor import ParamValueEditor, PARSE_ERROR
 
         dialog = QDialog(parent)
         dialog.setWindowTitle("Edit Discrete Transfer Function")
@@ -116,13 +117,21 @@ class DiscreteTransferFunction(BlockModel):
         info = QLabel(
             "Discrete-time (z-domain) Transfer Function.\n"
             "Format: coefficients of z^-1 in ascending order (b0, b1, ...).\n"
-            "Sample period = the simulation's own time step (dt)."
+            "Sample period = the simulation's own time step (dt).\n"
+            "Either can instead be a variable name, binding it to a global "
+            "variable holding the whole coefficient list."
         )
         info.setWordWrap(True)
         layout.addRow(info)
 
-        num_edit = QLineEdit(", ".join(str(x) for x in self.params.get("Numerator", [0.5])))
-        den_edit = QLineEdit(", ".join(str(x) for x in self.params.get("Denominator", [1.0])))
+        def format_coeffs(value):
+            return ", ".join(str(x) for x in value)
+
+        def parse_coeffs_text(text):
+            return [float(x.strip()) for x in text.split(',') if x.strip()]
+
+        num_edit = ParamValueEditor(self.params.get("Numerator", [0.5]), parse=parse_coeffs_text, format_fn=format_coeffs)
+        den_edit = ParamValueEditor(self.params.get("Denominator", [1.0]), parse=parse_coeffs_text, format_fn=format_coeffs)
 
         layout.addRow("Numerator (b):", num_edit)
         layout.addRow("Denominator (a):", den_edit)
@@ -135,8 +144,11 @@ class DiscreteTransferFunction(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            self.params["Numerator"] = [float(x.strip()) for x in num_edit.text().split(',') if x.strip()]
-            self.params["Denominator"] = [float(x.strip()) for x in den_edit.text().split(',') if x.strip()]
+            for key, editor in (("Numerator", num_edit), ("Denominator", den_edit)):
+                value = editor.get_value()
+                if value is not PARSE_ERROR:
+                    self.params[key] = value
+
             self._cache_key = None
             self.reset()
             self._update_label()
