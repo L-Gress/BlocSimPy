@@ -2,6 +2,7 @@
 import numpy as np
 from typing import List, Dict, Any, Tuple
 from ..models import BlockModel
+from ..variables import resolve_params, find_variable_refs, get_active_variables, set_active_variables
 from .executor import ExecutionOrdering, AlgebraicLoopError
 from .solvers import get_solver
 
@@ -32,17 +33,34 @@ class SimulationEngine:
         self.duration: float = 10.0
         self.dt: float = 0.01
         self.solver: str = "euler"
+        # The global variable store (see engine/variables.py) every
+        # variable-bound param resolves against -- defaults to whatever is
+        # currently registered (the real app's global variables, or {} for
+        # headless/test code that never registered one).
+        self.variables: Dict[str, Any] = get_active_variables()
 
-    def configure(self, blocks: List[BlockModel], duration: float, dt: float, solver: str = "euler"):
+    def configure(self, blocks: List[BlockModel], duration: float, dt: float, solver: str = "euler",
+                  variables: Dict[str, Any] = None):
         """Configure the simulation with blocks and parameters.
 
         solver: "euler" (default, forward Euler) or "rk4" (classic 4th-order
         Runge-Kutta, applied per-block -- see engine.simulation.solvers).
+
+        variables: optional override for the global variable store (see
+        engine/variables.py) -- passing one also RE-registers it via
+        set_active_variables(), so a SubGraph's own nested resolution
+        (which has no direct way to receive `self.variables`, since
+        reset() takes no arguments) stays in sync with it. Omit to just use
+        whatever's already registered (the normal app path -- see
+        ScriptManager.__init__).
         """
         self.blocks = blocks
         self.duration = duration
         self.dt = dt
         self.solver = solver
+        if variables is not None:
+            set_active_variables(variables)
+        self.variables = get_active_variables()
     
     def run(self, progress_callback=None, should_cancel=None) -> SimulationResult:
         """
@@ -59,8 +77,31 @@ class SimulationEngine:
             SimulationResult containing time and scope data
         """
         result = SimulationResult()
+        original_params = {}
 
         try:
+            # Swap in resolved values for every variable-bound param (see
+            # engine/variables.py) BEFORE topological_sort() below -- some
+            # blocks' has_direct_feedthrough (TransferFunction, StateSpace,
+            # ...) is a live property computed FROM their own params, which
+            # topological_sort() reads for algebraic-loop detection; sorting
+            # against still-unresolved reference dicts would (best case)
+            # order the diagram against the wrong feedthrough info, not
+            # just fail to compute a value yet. Restored in `finally`
+            # below, so the live/design params (references intact) are
+            # exactly what they were before Run regardless of success/
+            # failure/cancellation -- callers are expected to have already
+            # blocked the run on any `missing` name via
+            # check_diagram_detailed() (see ToolbarManager.run_simulation()/
+            # ScriptManager.sim()), so anything still unresolved here is
+            # passed through as-is rather than silently defaulted to 0.0.
+            for block in self.blocks:
+                if hasattr(block, "params"):
+                    resolved, _missing = resolve_params(block.params, self.variables)
+                    if resolved is not block.params:
+                        original_params[block] = block.params
+                        block.params = resolved
+
             # Sort blocks in execution order
             sorted_blocks = ExecutionOrdering.topological_sort(self.blocks)
 
@@ -114,7 +155,10 @@ class SimulationEngine:
         except Exception as e:
             result.success = False
             result.error_message = str(e)
-        
+        finally:
+            for block, params in original_params.items():
+                block.params = params
+
         return result
     
     def validate(self) -> "Tuple[bool, str]":
@@ -177,4 +221,40 @@ class SimulationEngine:
                         "blocks": [block_name],
                     })
 
+            if hasattr(block, "params"):
+                self._check_missing_variables(block_name, block.params, issues)
+            nested = getattr(block, "internal_blocks_data", None)
+            if nested:
+                self._check_missing_variables_nested(block_name, nested, issues)
+
         return issues
+
+    def _check_missing_variables(self, block_label: str, params: Dict[str, Any], issues: "List[Dict[str, Any]]"):
+        """Flag every parameter on one block bound (see engine/variables.py)
+        to a name not currently in self.variables -- a typo, a forgotten
+        setup Script, or a variable that was renamed/cleared since the
+        param was bound. Blocking (ERROR), not a warning: Run swaps this
+        value in for the whole simulation (see run()), so an undeclared
+        reference is never worth guessing a default for."""
+        for param_name, var_name in find_variable_refs(params).items():
+            if var_name not in self.variables:
+                issues.append({
+                    "level": "ERROR",
+                    "message": f"{block_label}.{param_name} references undeclared variable '{var_name}'",
+                    "blocks": [block_label],
+                })
+
+    def _check_missing_variables_nested(self, path_prefix: str, blocks_data: "List[Dict[str, Any]]",
+                                         issues: "List[Dict[str, Any]]"):
+        """Same check as _check_missing_variables(), recursively over a
+        SubGraph's raw internal_blocks_data (and any SubGraph nested inside
+        THAT, arbitrarily deep) -- those blocks are only ever instantiated
+        as ephemeral execution_blocks inside SubGraph.reset(), so they're
+        not in self.blocks and need their own pass over the design-time
+        dicts instead of a live block's .params."""
+        for b_data in blocks_data:
+            label = f"{path_prefix}/{b_data.get('params', {}).get('BlockName', b_data.get('type', '?'))}"
+            self._check_missing_variables(label, b_data.get("params", {}), issues)
+            nested = b_data.get("internal_blocks_data")
+            if nested:
+                self._check_missing_variables_nested(label, nested, issues)

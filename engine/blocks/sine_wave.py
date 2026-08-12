@@ -76,23 +76,24 @@ class SineWave(BlockModel):
         self.outputs["out"].value = amp * np.sin(self._two_pi * freq * time_val + phase)
 
     def get_editor_dialog(self, parent=None):
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QCheckBox, QDialogButtonBox
+        from PySide6.QtWidgets import QDialog, QFormLayout, QCheckBox, QDialogButtonBox
+        from gui.widgets.param_value_editor import ParamValueEditor
 
         dialog = QDialog(parent)
         dialog.setWindowTitle(f"Edit {self.name}")
         layout = QFormLayout(dialog)
-        
+
         # Amplitude
-        le_amp = QLineEdit(str(self.params.get("Amplitude", 1.0)))
-        layout.addRow("Amplitude:", le_amp)
+        amp_edit = ParamValueEditor(self.params.get("Amplitude", 1.0))
+        layout.addRow("Amplitude:", amp_edit)
 
         # Frequency
-        le_freq = QLineEdit(str(self.params.get("Frequency", 1.0)))
-        layout.addRow("Frequency (Hz):", le_freq)
+        freq_edit = ParamValueEditor(self.params.get("Frequency", 1.0))
+        layout.addRow("Frequency (Hz):", freq_edit)
 
         # Phase
-        le_phase = QLineEdit(str(self.params.get("Phase", 0.0)))
-        layout.addRow("Phase (rad):", le_phase)
+        phase_edit = ParamValueEditor(self.params.get("Phase", 0.0))
+        layout.addRow("Phase (rad):", phase_edit)
 
         # External Time
         cb_ext_time = QCheckBox()
@@ -108,21 +109,9 @@ class SineWave(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            try:
-                self.params["Amplitude"] = float(le_amp.text())
-            except ValueError:
-                pass # Keep old or ignore
-            
-            try:
-                self.params["Frequency"] = float(le_freq.text())
-            except ValueError:
-                pass
-                
-            try:
-                self.params["Phase"] = float(le_phase.text())
-            except ValueError:
-                pass
-
+            self.params["Amplitude"] = amp_edit.get_value()
+            self.params["Frequency"] = freq_edit.get_value()
+            self.params["Phase"] = phase_edit.get_value()
             self.params["Use External Time"] = "True" if cb_ext_time.isChecked() else "False"
 
             self.update_io()

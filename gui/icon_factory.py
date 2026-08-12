@@ -14,11 +14,37 @@ from PySide6.QtCore import QRectF, QPointF, Qt
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QPen, QPainterPath, QColor
 
 _GRID = 24.0
-_STROKE = QColor("#3a3a3c")   # neutral dark gray -- reads on the light toolbar/menu
-_ACCENT = QColor("#007aff")   # systemBlue, used only for the primary Run glyph
 _SIZES = (16, 20, 24, 28, 32)
 
+# Stroke/accent colors per theme -- icons are drawn fresh from these on
+# every icon() call (nothing is cached here), so switching _CURRENT_MODE
+# and re-calling icon() for every action already on screen (see
+# ToolbarManager.refresh_icons()/UserSpaceWidget.refresh_tree()) is enough
+# to re-theme every icon in the app.
+_STROKE_BY_MODE = {
+    "light": QColor("#3a3a3c"),   # neutral dark gray -- reads on the light toolbar/menu
+    "dark": QColor("#d4d4d4"),    # neutral light gray -- reads on the dark toolbar/menu
+}
+_ACCENT_BY_MODE = {
+    "light": QColor("#007aff"),   # systemBlue (light), used only for the primary Run glyph
+    "dark": QColor("#0a84ff"),    # systemBlue (dark)
+}
+_CURRENT_MODE = "light"
+_STROKE = _STROKE_BY_MODE[_CURRENT_MODE]
+_ACCENT = _ACCENT_BY_MODE[_CURRENT_MODE]
+
 _registry = {}
+
+
+def set_theme(mode):
+    """Switch the colors every icon is drawn with from here on. Doesn't
+    touch icons already set on existing QActions/QTreeWidgetItems -- callers
+    must re-fetch icon(name) for anything already on screen (see module
+    docstring)."""
+    global _CURRENT_MODE, _STROKE, _ACCENT
+    _CURRENT_MODE = "dark" if mode == "dark" else "light"
+    _STROKE = _STROKE_BY_MODE[_CURRENT_MODE]
+    _ACCENT = _ACCENT_BY_MODE[_CURRENT_MODE]
 
 
 def _register(name):
@@ -28,8 +54,13 @@ def _register(name):
     return deco
 
 
-def _pen(color=_STROKE, width=1.7):
-    pen = QPen(color, width)
+def _pen(color=None, width=1.7):
+    # `color` isn't defaulted to `_STROKE` directly -- default arguments are
+    # bound once at function-definition time, which would freeze every
+    # unthemed call at whatever _STROKE was when this module first loaded,
+    # ignoring later set_theme() calls. Reading the module global inside the
+    # body instead picks up the current theme on every call.
+    pen = QPen(_STROKE if color is None else color, width)
     pen.setCapStyle(Qt.RoundCap)
     pen.setJoinStyle(Qt.RoundJoin)
     return pen
@@ -212,6 +243,16 @@ def _draw_run(p):
     p.drawPath(path)
 
 
+@_register("stop")
+def _draw_stop(p):
+    # Pairs with "run": same fill/no-pen treatment, a plain filled square
+    # standing in for the play triangle -- what the Run button turns into
+    # while a simulation/Script is running (see ToolbarManager._set_running()).
+    p.setPen(Qt.NoPen)
+    p.setBrush(_ACCENT)
+    p.drawRoundedRect(QRectF(7, 7, 10, 10), 1.5, 1.5)
+
+
 @_register("inspector")
 def _draw_inspector(p):
     p.setPen(Qt.NoPen)
@@ -332,6 +373,74 @@ def _draw_duplicate(p):
     p.setPen(_pen())
     p.drawRoundedRect(QRectF(3, 7, 12, 14), 2, 2)
     p.drawRoundedRect(QRectF(9, 3, 12, 14), 2, 2)
+
+
+@_register("console")
+def _draw_console(p):
+    # Classic terminal glyph: a ">" prompt chevron plus a cursor bar,
+    # inside a rounded frame.
+    p.setPen(_pen())
+    p.drawRoundedRect(QRectF(3, 4.5, 18, 15), 2.5, 2.5)
+    chevron = QPainterPath()
+    chevron.moveTo(6.5, 9.5); chevron.lineTo(10.5, 12.5); chevron.lineTo(6.5, 15.5)
+    p.drawPath(chevron)
+    p.drawLine(QPointF(12.5, 15.5), QPointF(17, 15.5))
+
+
+def _globals_table_path():
+    # Shared base glyph for "globals"/"clear_globals": a mini 2-col x
+    # 3-row table, standing in for a name/value variable list (same idea
+    # as the "inspector" bars standing in for a data plot).
+    path = QPainterPath()
+    path.addRoundedRect(QRectF(3.5, 4.5, 17, 15), 2, 2)
+    path.moveTo(11, 4.5); path.lineTo(11, 19.5)
+    path.moveTo(3.5, 9.5); path.lineTo(20.5, 9.5)
+    path.moveTo(3.5, 14.5); path.lineTo(20.5, 14.5)
+    return path
+
+
+@_register("globals")
+def _draw_globals(p):
+    p.setPen(_pen())
+    p.drawPath(_globals_table_path())
+
+
+@_register("clear_globals")
+def _draw_clear_globals(p):
+    # Same table glyph as "globals", plus an accent strike-through --
+    # mirrors how "project" reuses "open" plus a badge to signal "same
+    # thing, destructive/alternate action".
+    p.setPen(_pen())
+    p.drawPath(_globals_table_path())
+    p.setPen(_pen(_ACCENT, width=2.2))
+    p.drawLine(QPointF(2.5, 21), QPointF(21.5, 2.5))
+
+
+@_register("theme")
+def _draw_theme(p):
+    # Crescent moon: a circle with a second, offset circle subtracted from
+    # it (QPainterPath.subtracted(), exact boolean "A minus B" -- unlike an
+    # even-odd fill over two overlapping circles, which would leave a
+    # stray sliver of the second circle behind).
+    p.setPen(Qt.NoPen)
+    p.setBrush(_STROKE)
+    moon = QPainterPath()
+    moon.addEllipse(QPointF(12, 12.5), 7.5, 7.5)
+    cutout = QPainterPath()
+    cutout.addEllipse(QPointF(16, 9), 6.5, 6.5)
+    p.drawPath(moon.subtracted(cutout))
+
+
+@_register("library")
+def _draw_library(p):
+    # Bookshelf glyph: a baseline shelf with three book spines of
+    # different heights standing on it -- the block palette/User Space
+    # dock this toggles is literally a shelf of reusable pieces.
+    p.setPen(_pen())
+    p.drawLine(QPointF(3.5, 20), QPointF(20.5, 20))
+    p.drawRoundedRect(QRectF(4.5, 7, 4, 13), 1, 1)
+    p.drawRoundedRect(QRectF(10, 4, 4, 16), 1, 1)
+    p.drawRoundedRect(QRectF(15.5, 9, 4, 11), 1, 1)
 
 
 def icon(name, color=None):

@@ -6,13 +6,32 @@ H(z)) so both variants share one implementation instead of duplicating it.
 
 def parse_coeffs(val):
     """Accepts a list/tuple of numbers, or a comma-separated string, and
-    returns a list of floats. A bare scalar is wrapped in a 1-element list."""
+    returns a list of floats. A bare scalar is wrapped in a 1-element list.
+
+    Falls back to [1.0] instead of raising for anything else -- notably a
+    variable reference dict (see engine/variables.py) that hasn't been
+    resolved yet, which both TransferFunction and DiscreteTransferFunction
+    can perfectly well have sitting in self.params while idle on the
+    canvas (not simulating) or during SimulationEngine.check_diagram()'s
+    pre-flight pass (which never resolves anything -- it validates the
+    UNRESOLVED design). Consistent with StateSpace's identical "fall back
+    to something harmless rather than crash on bad input" handling of its
+    own A/B/C/D."""
     if isinstance(val, (list, tuple)):
-        return [float(x) for x in val]
+        try:
+            return [float(x) for x in val]
+        except (TypeError, ValueError):
+            return [1.0]
     if isinstance(val, str):
         parts = [s.strip() for s in val.split(',') if s.strip()]
-        return [float(x) for x in parts]
-    return [float(val)]
+        try:
+            return [float(x) for x in parts]
+        except (TypeError, ValueError):
+            return [1.0]
+    try:
+        return [float(val)]
+    except (TypeError, ValueError):
+        return [1.0]
 
 
 def to_superscript(num):

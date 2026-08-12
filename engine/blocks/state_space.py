@@ -2,6 +2,23 @@ import numpy as np
 from ..models import BlockModel
 
 
+def _parse_matrix(text):
+    rows = [r.strip() for r in text.split(';') if r.strip()]
+    return [[float(p) for p in row.replace(',', ' ').split()] for row in rows]
+
+
+def _format_matrix(value):
+    return "; ".join(" ".join(str(v) for v in row) for row in value)
+
+
+def _parse_vector(text):
+    return [float(p) for p in text.replace(',', ' ').replace(';', ' ').split()]
+
+
+def _format_vector(value):
+    return " ".join(str(v) for v in value)
+
+
 class StateSpace(BlockModel):
     """SISO continuous-time State-Space model: x' = Ax + Bu, y = Cx + Du.
 
@@ -130,7 +147,8 @@ class StateSpace(BlockModel):
         self.states = [0.0] * len(self.states)
 
     def get_editor_dialog(self, parent=None):
-        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QLabel, QDialogButtonBox
+        from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QDialogButtonBox
+        from gui.widgets.param_value_editor import ParamValueEditor, PARSE_ERROR
 
         dialog = QDialog(parent)
         dialog.setWindowTitle("Edit State-Space")
@@ -139,20 +157,17 @@ class StateSpace(BlockModel):
         info = QLabel(
             "SISO continuous-time state-space model: x' = Ax + Bu, y = Cx + Du.\n"
             "A: rows separated by ';', values by space/comma (e.g. '0 1; -2 -3').\n"
-            "B, C: space/comma-separated values (length = A's order). D: a scalar."
+            "B, C: space/comma-separated values (length = A's order). D: a scalar.\n"
+            "Any of these can instead be a variable name, binding it to a "
+            "global variable holding the whole matrix/vector/scalar."
         )
         info.setWordWrap(True)
         layout.addRow(info)
 
-        a_text = "; ".join(" ".join(str(v) for v in row) for row in self.params.get("A", [[-1.0]]))
-        b_text = " ".join(str(v) for v in self.params.get("B", [1.0]))
-        c_text = " ".join(str(v) for v in self.params.get("C", [1.0]))
-        d_text = str(self.params.get("D", 0.0))
-
-        a_edit = QLineEdit(a_text)
-        b_edit = QLineEdit(b_text)
-        c_edit = QLineEdit(c_text)
-        d_edit = QLineEdit(d_text)
+        a_edit = ParamValueEditor(self.params.get("A", [[-1.0]]), parse=_parse_matrix, format_fn=_format_matrix)
+        b_edit = ParamValueEditor(self.params.get("B", [1.0]), parse=_parse_vector, format_fn=_format_vector)
+        c_edit = ParamValueEditor(self.params.get("C", [1.0]), parse=_parse_vector, format_fn=_format_vector)
+        d_edit = ParamValueEditor(self.params.get("D", 0.0))
 
         layout.addRow("A:", a_edit)
         layout.addRow("B:", b_edit)
@@ -167,20 +182,14 @@ class StateSpace(BlockModel):
         original_accept = dialog.accept
 
         def accept_with_save():
-            def parse_matrix(text):
-                rows = [r.strip() for r in text.split(';') if r.strip()]
-                return [[float(p) for p in row.replace(',', ' ').split()] for row in rows]
+            # A bad edit in one field leaves just that one param untouched
+            # (see ParamValueEditor.PARSE_ERROR) rather than discarding the
+            # other three or crashing the dialog.
+            for key, editor in (("A", a_edit), ("B", b_edit), ("C", c_edit), ("D", d_edit)):
+                value = editor.get_value()
+                if value is not PARSE_ERROR:
+                    self.params[key] = value
 
-            def parse_vector(text):
-                return [float(p) for p in text.replace(',', ' ').replace(';', ' ').split()]
-
-            try:
-                self.params["A"] = parse_matrix(a_edit.text())
-                self.params["B"] = parse_vector(b_edit.text())
-                self.params["C"] = parse_vector(c_edit.text())
-                self.params["D"] = float(d_edit.text())
-            except ValueError:
-                pass
             self._cache_key = None
             self.reset()
             original_accept()
