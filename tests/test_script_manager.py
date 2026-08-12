@@ -967,32 +967,18 @@ class TestGlobalsWidget(unittest.TestCase):
         self.assertIn("y", names)
 
     def test_clear_all_button_wipes_globals_and_refreshes(self):
-        from unittest.mock import patch
-        from PySide6.QtWidgets import QMessageBox
-
+        # No confirmation prompt -- Clear All is a single click, unlike the
+        # Tools menu/toolbar's "Clear Global Variables..." action, which
+        # still confirms (see ToolbarManager.clear_globals()).
         sm, mw = _build_manager()
         sm.execute_script("x = 10")
         widget = GlobalsWidget(mw, sm)
         self.assertGreater(widget.table.rowCount(), 0)
 
-        with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
-            widget._on_clear_clicked()
+        widget._on_clear_clicked()
 
         self.assertNotIn("x", sm.persistent_env)
         self.assertEqual(widget.table.rowCount(), 0)
-
-    def test_clear_all_button_does_nothing_if_not_confirmed(self):
-        from unittest.mock import patch
-        from PySide6.QtWidgets import QMessageBox
-
-        sm, mw = _build_manager()
-        sm.execute_script("x = 10")
-        widget = GlobalsWidget(mw, sm)
-
-        with patch.object(QMessageBox, "question", return_value=QMessageBox.No):
-            widget._on_clear_clicked()
-
-        self.assertIn("x", sm.persistent_env)
 
     def test_auto_refresh_picks_up_new_variable_without_manual_refresh(self):
         # What the QTimer calls on each tick -- no user-clicked Refresh

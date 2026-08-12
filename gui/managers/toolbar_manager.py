@@ -40,14 +40,32 @@ class ToolbarManager:
         self._script_cancel_requested = False
         self._running_script_path = None
 
+        # (action, icon_name) for every action built with an icon --
+        # refresh_icons() re-fetches icon_factory.icon(icon_name) for each
+        # one after a theme switch (see gui/managers/theme_manager.py),
+        # since icon_factory doesn't cache/re-theme pixmaps already handed
+        # to a QAction on its own.
+        self._icon_actions = []
+
     def _make_action(self, text, slot, shortcut=None, icon_name=None, parent=None):
         action = QAction(text, parent or self.main_window)
         if icon_name is not None:
             action.setIcon(icon_factory.icon(icon_name))
+            self._icon_actions.append((action, icon_name))
         if shortcut is not None:
             action.setShortcut(shortcut)
         action.triggered.connect(slot)
         return action
+
+    def refresh_icons(self):
+        """Re-draw every toolbar/menu action's icon in the current theme
+        (see gui/icon_factory.py's set_theme()) -- called after the app-wide
+        theme switches. action_run is a special case: it isn't in
+        _icon_actions' fixed name because it toggles between "run"/"stop"
+        icons at runtime (see _set_running()/_set_idle())."""
+        for action, icon_name in self._icon_actions:
+            action.setIcon(icon_factory.icon(icon_name))
+        self.action_run.setIcon(icon_factory.icon("stop" if self._run_kind is not None else "run"))
 
     def create_toolbar(self):
         """Create every QAction, wire it up, and lay them out on the
@@ -153,6 +171,9 @@ class ToolbarManager:
         self.action_clear_globals = self._make_action(
             "Clear Global Variables...", self.clear_globals, None, "clear_globals"
         )
+        self.action_toggle_theme = self._make_action(
+            "Toggle Dark Mode", mw.theme_manager.toggle, QKeySequence("Ctrl+Shift+D"), "theme"
+        )
 
         # --- Help ---
         self.action_help = self._make_action(
@@ -207,6 +228,8 @@ class ToolbarManager:
         self.toolbar.addSeparator()
         for action in (self.action_toggle_lib, self.action_toggle_console, self.action_toggle_globals):
             self.toolbar.addAction(action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.action_toggle_theme)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.action_help)
 

@@ -19,7 +19,7 @@ going stale without wiring a signal through every one of those call sites.
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QLabel, QLineEdit, QHeaderView, QMessageBox
+    QPushButton, QLabel, QLineEdit, QHeaderView
 )
 from PySide6.QtCore import QTimer
 
@@ -182,15 +182,5 @@ class GlobalsWidget(QWidget):
             self.refresh()
 
     def _on_clear_clicked(self):
-        reply = QMessageBox.question(
-            self, "Clear Global Variables",
-            "Remove every variable a Script or the Console has defined "
-            "this session? The built-in API (add_block, sim, np, ...) is "
-            "unaffected -- it's always available again on the next run. "
-            "This can't be undone.",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-        )
-        if reply != QMessageBox.Yes:
-            return
         self.script_manager.clear_globals()
         self.refresh()

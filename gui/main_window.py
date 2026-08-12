@@ -7,7 +7,7 @@ from PySide6.QtGui import QIcon
 from config.ui_config import UIConfig
 from .scene import NodeScene
 from .widgets import GraphicsView
-from .managers import ToolbarManager, SceneManager, DockManager, ScriptManager, ProjectManager
+from .managers import ToolbarManager, SceneManager, DockManager, ScriptManager, ProjectManager, ThemeManager
 from .dialogs import HelpDialog
 
 
@@ -85,6 +85,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_tabs)
 
         # --- Initialize Managers ---
+        # Built before ToolbarManager: create_toolbar() wires up the
+        # Toggle Dark Mode action against theme_manager.toggle() directly.
+        self.theme_manager = ThemeManager(self)
         self.toolbar_manager = ToolbarManager(self)
         self.dock_manager = DockManager(self)
         self.script_manager = ScriptManager(self)
@@ -137,6 +140,12 @@ class MainWindow(QMainWindow):
         # one in User Space) re-enables them, and stays that way for the
         # rest of the session -- see open_diagram_tab().
         self.toolbar_manager.set_diagram_actions_enabled(False)
+
+        # Applies the user's saved light/dark choice (default light) to
+        # everything just built above -- QSS, canvas palette, icons,
+        # Console. No Script/diagram tabs exist yet at this point, so
+        # there's nothing else for it to touch.
+        self.theme_manager.apply()
 
         self.refresh_title()
         self._restore_window_state()
@@ -386,6 +395,8 @@ class MainWindow(QMainWindow):
         view_menu.addAction(tm.action_toggle_console)
         view_menu.addAction(tm.action_toggle_globals)
         view_menu.addAction(tm.action_up)
+        view_menu.addSeparator()
+        view_menu.addAction(tm.action_toggle_theme)
 
         sim_menu = menu_bar.addMenu("&Simulation")
         sim_menu.addAction(tm.action_sim_settings)

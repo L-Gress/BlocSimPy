@@ -184,7 +184,9 @@ class ScriptManager:
         def make_widget():
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            return ScriptEditorWidget(self.main_window, self, file_path, content)
+            return ScriptEditorWidget(
+                self.main_window, self, file_path, content, mode=self.main_window.theme_manager.mode
+            )
 
         try:
             self.main_window.open_script_tab(file_path, make_widget)

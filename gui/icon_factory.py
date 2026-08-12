@@ -14,11 +14,37 @@ from PySide6.QtCore import QRectF, QPointF, Qt
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QPen, QPainterPath, QColor
 
 _GRID = 24.0
-_STROKE = QColor("#3a3a3c")   # neutral dark gray -- reads on the light toolbar/menu
-_ACCENT = QColor("#007aff")   # systemBlue, used only for the primary Run glyph
 _SIZES = (16, 20, 24, 28, 32)
 
+# Stroke/accent colors per theme -- icons are drawn fresh from these on
+# every icon() call (nothing is cached here), so switching _CURRENT_MODE
+# and re-calling icon() for every action already on screen (see
+# ToolbarManager.refresh_icons()/UserSpaceWidget.refresh_tree()) is enough
+# to re-theme every icon in the app.
+_STROKE_BY_MODE = {
+    "light": QColor("#3a3a3c"),   # neutral dark gray -- reads on the light toolbar/menu
+    "dark": QColor("#d4d4d4"),    # neutral light gray -- reads on the dark toolbar/menu
+}
+_ACCENT_BY_MODE = {
+    "light": QColor("#007aff"),   # systemBlue (light), used only for the primary Run glyph
+    "dark": QColor("#0a84ff"),    # systemBlue (dark)
+}
+_CURRENT_MODE = "light"
+_STROKE = _STROKE_BY_MODE[_CURRENT_MODE]
+_ACCENT = _ACCENT_BY_MODE[_CURRENT_MODE]
+
 _registry = {}
+
+
+def set_theme(mode):
+    """Switch the colors every icon is drawn with from here on. Doesn't
+    touch icons already set on existing QActions/QTreeWidgetItems -- callers
+    must re-fetch icon(name) for anything already on screen (see module
+    docstring)."""
+    global _CURRENT_MODE, _STROKE, _ACCENT
+    _CURRENT_MODE = "dark" if mode == "dark" else "light"
+    _STROKE = _STROKE_BY_MODE[_CURRENT_MODE]
+    _ACCENT = _ACCENT_BY_MODE[_CURRENT_MODE]
 
 
 def _register(name):
@@ -28,8 +54,13 @@ def _register(name):
     return deco
 
 
-def _pen(color=_STROKE, width=1.7):
-    pen = QPen(color, width)
+def _pen(color=None, width=1.7):
+    # `color` isn't defaulted to `_STROKE` directly -- default arguments are
+    # bound once at function-definition time, which would freeze every
+    # unthemed call at whatever _STROKE was when this module first loaded,
+    # ignoring later set_theme() calls. Reading the module global inside the
+    # body instead picks up the current theme on every call.
+    pen = QPen(_STROKE if color is None else color, width)
     pen.setCapStyle(Qt.RoundCap)
     pen.setJoinStyle(Qt.RoundJoin)
     return pen
@@ -383,6 +414,21 @@ def _draw_clear_globals(p):
     p.drawPath(_globals_table_path())
     p.setPen(_pen(_ACCENT, width=2.2))
     p.drawLine(QPointF(2.5, 21), QPointF(21.5, 2.5))
+
+
+@_register("theme")
+def _draw_theme(p):
+    # Crescent moon: a circle with a second, offset circle subtracted from
+    # it (QPainterPath.subtracted(), exact boolean "A minus B" -- unlike an
+    # even-odd fill over two overlapping circles, which would leave a
+    # stray sliver of the second circle behind).
+    p.setPen(Qt.NoPen)
+    p.setBrush(_STROKE)
+    moon = QPainterPath()
+    moon.addEllipse(QPointF(12, 12.5), 7.5, 7.5)
+    cutout = QPainterPath()
+    cutout.addEllipse(QPointF(16, 9), 6.5, 6.5)
+    p.drawPath(moon.subtracted(cutout))
 
 
 @_register("library")

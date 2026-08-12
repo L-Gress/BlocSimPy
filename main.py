@@ -10,7 +10,6 @@ matplotlib.use('QtAgg')
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 from gui.main_window import MainWindow
-from config.theme import STYLESHEET
 
 
 def main(argv=None):
@@ -18,8 +17,8 @@ def main(argv=None):
 
     # Fusion is the cross-platform base style QSS theming is designed
     # against -- native styles (e.g. windowsvista) don't reliably honor
-    # QSS colors on every widget, which is what the dark theme below relies
-    # on throughout.
+    # QSS colors on every widget, which both the light and dark themes
+    # below rely on throughout.
     app.setStyle("Fusion")
 
     font = QFont()
@@ -27,8 +26,9 @@ def main(argv=None):
     font.setPointSize(10)
     app.setFont(font)
 
-    app.setStyleSheet(STYLESHEET)
-
+    # MainWindow applies the user's saved light/dark choice (config/theme.py
+    # + gui/managers/theme_manager.py) as its very last construction step,
+    # so the app's QSS is set there, not here.
     window = MainWindow()
     window.show()
     return app.exec()
