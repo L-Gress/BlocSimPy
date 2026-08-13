@@ -63,15 +63,6 @@ pytest tests/
 The test suite runs against `engine/` (pure Python, no display needed) plus a small number of
 Qt-backed tests for GUI-only logic; both run headlessly in CI-style environments.
 
-## Building a standalone executable
-
-```bash
-pip install -r requirements-dev.txt
-python build_exe_fast.py
-```
-
-Produces a one-file executable via PyInstaller (see `build_exe_fast.py` for the exact flags).
-
 ## Project layout
 
 ```
