@@ -201,6 +201,50 @@ class TestSubGraphStandardMode(unittest.TestCase):
         finally:
             set_active_variables(saved)
 
+    def test_nested_subgraph_computes_without_ever_being_entered(self):
+        # Regression test: a SubGraph nested INSIDE another SubGraph must
+        # compute correctly on reset()/compute() alone, with no prior UI
+        # step of "entering" it to populate live scene state. Previously,
+        # _instantiate_internal_blocks() constructed a fresh nested
+        # SubGraph instance via BLOCK_REGISTRY but never copied the design-time
+        # internal_blocks_data/internal_connections_data (or refreshed its
+        # ports) onto it before calling reset() -- so the nested instance
+        # always instantiated ZERO execution_blocks and silently produced
+        # 0.0 instead of the expected value.
+        inner = SubGraph()
+        inner.internal_blocks_data = [
+            {"id": "in1", "type": "InputPort", "params": {"PortName": "In"}},
+            {"id": "gain1", "type": "Gain", "params": {"Gain": 2.0}},
+            {"id": "out1", "type": "OutputPort", "params": {"PortName": "Out"}},
+        ]
+        inner.internal_connections_data = [
+            {"from_block_id": "in1", "from_port": "out", "to_block_id": "gain1", "to_port": "in"},
+            {"from_block_id": "gain1", "from_port": "out", "to_block_id": "out1", "to_port": "in"},
+        ]
+
+        outer = SubGraph()
+        outer.internal_blocks_data = [
+            {"id": "oin1", "type": "InputPort", "params": {"PortName": "In"}},
+            {
+                "id": "nested1", "type": "SubGraph", "params": {},
+                "internal_blocks_data": inner.internal_blocks_data,
+                "internal_connections_data": inner.internal_connections_data,
+            },
+            {"id": "oout1", "type": "OutputPort", "params": {"PortName": "Out"}},
+        ]
+        outer.internal_connections_data = [
+            {"from_block_id": "oin1", "from_port": "out", "to_block_id": "nested1", "to_port": "In"},
+            {"from_block_id": "nested1", "from_port": "Out", "to_block_id": "oout1", "to_port": "in"},
+        ]
+        outer.sync_ports_from_data()
+
+        # No enter_subsystem()/exit round-trip anywhere -- straight to reset().
+        outer.reset()
+        outer.inputs["In"].value = 5.0
+        outer.compute(0.0, 0.01)
+
+        self.assertAlmostEqual(outer.outputs["Out"].value, 10.0)
+
     def test_reset_reinstantiates_internal_blocks(self):
         sg = self._build_gain_subgraph()
         sg.reset()

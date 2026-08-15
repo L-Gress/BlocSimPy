@@ -150,6 +150,20 @@ class SubGraph(BlockModel):
                 resolved_params, _missing = resolve_params(b_data.get("params", {}), variables)
                 instance.params = dict(resolved_params)
 
+                # A nested SubGraph's own internal_blocks_data/
+                # internal_connections_data only live in the *design-time*
+                # dict (b_data) -- a fresh BLOCK_REGISTRY["SubGraph"]()
+                # instance starts with empty lists (see __init__), so they
+                # must be copied over before reset() or the nested level
+                # instantiates zero execution_blocks and silently computes
+                # nothing (see engine/serialization/graph_serializer.py and
+                # engine/blocks/_feedthrough_utils.py for the same pattern).
+                if "internal_blocks_data" in b_data:
+                    instance.internal_blocks_data = b_data.get("internal_blocks_data", [])
+                    instance.internal_connections_data = b_data.get("internal_connections_data", [])
+                    if hasattr(instance, "refresh_io_ports"):
+                        instance.refresh_io_ports()
+
                 if hasattr(instance, "reset"):
                     instance.reset()
 

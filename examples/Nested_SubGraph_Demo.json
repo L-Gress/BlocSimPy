@@ -1,0 +1,290 @@
+{
+    "blocks": [
+        {
+            "class": "Constant",
+            "type": "Constant",
+            "id": 1627096112480,
+            "position": {
+                "x": 0.0,
+                "y": 150.0
+            },
+            "rotation": 0.0,
+            "params": {
+                "Value": 5.0,
+                "BlockName": "Const"
+            }
+        },
+        {
+            "class": "SubGraph",
+            "type": "SubGraph",
+            "id": 1627096277808,
+            "position": {
+                "x": 250.0,
+                "y": 150.0
+            },
+            "rotation": 0.0,
+            "params": {
+                "BlockName": "Outer",
+                "MaskIconPath": ""
+            },
+            "internal_blocks_data": [
+                {
+                    "class": "InputPort",
+                    "type": "InputPort",
+                    "id": 1627096310240,
+                    "position": {
+                        "x": 0.0,
+                        "y": 100.0
+                    },
+                    "rotation": 0.0,
+                    "params": {
+                        "PortName": "In",
+                        "BlockName": "OuterIn"
+                    }
+                },
+                {
+                    "class": "SubGraph",
+                    "type": "SubGraph",
+                    "id": 1627096933648,
+                    "position": {
+                        "x": 200.0,
+                        "y": 100.0
+                    },
+                    "rotation": 0.0,
+                    "params": {
+                        "BlockName": "Inner",
+                        "MaskIconPath": ""
+                    },
+                    "internal_blocks_data": [
+                        {
+                            "class": "InputPort",
+                            "type": "InputPort",
+                            "id": 1627096933120,
+                            "position": {
+                                "x": 0.0,
+                                "y": 50.0
+                            },
+                            "rotation": 0.0,
+                            "params": {
+                                "PortName": "In",
+                                "BlockName": "InnerIn"
+                            }
+                        },
+                        {
+                            "class": "Gain",
+                            "type": "Gain",
+                            "id": 1627096933312,
+                            "position": {
+                                "x": 200.0,
+                                "y": 50.0
+                            },
+                            "rotation": 0.0,
+                            "params": {
+                                "Gain": 2.0,
+                                "BlockName": "Gain2x"
+                            }
+                        },
+                        {
+                            "class": "OutputPort",
+                            "type": "OutputPort",
+                            "id": 1627096581280,
+                            "position": {
+                                "x": 400.0,
+                                "y": 50.0
+                            },
+                            "rotation": 0.0,
+                            "params": {
+                                "PortName": "Out",
+                                "BlockName": "InnerOut"
+                            }
+                        }
+                    ],
+                    "internal_connections_data": [
+                        {
+                            "from_block_id": 1627096933120,
+                            "from_port": "out",
+                            "to_block_id": 1627096933312,
+                            "to_port": "in",
+                            "points": [
+                                [
+                                    100.0,
+                                    77.0
+                                ],
+                                [
+                                    150.0,
+                                    77.0
+                                ],
+                                [
+                                    150.0,
+                                    77.0
+                                ],
+                                [
+                                    200.0,
+                                    77.0
+                                ]
+                            ]
+                        },
+                        {
+                            "from_block_id": 1627096933312,
+                            "from_port": "out",
+                            "to_block_id": 1627096581280,
+                            "to_port": "in",
+                            "points": [
+                                [
+                                    300.0,
+                                    77.0
+                                ],
+                                [
+                                    350.0,
+                                    77.0
+                                ],
+                                [
+                                    350.0,
+                                    77.0
+                                ],
+                                [
+                                    400.0,
+                                    77.0
+                                ]
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "class": "OutputPort",
+                    "type": "OutputPort",
+                    "id": 1627096933744,
+                    "position": {
+                        "x": 400.0,
+                        "y": 100.0
+                    },
+                    "rotation": 0.0,
+                    "params": {
+                        "PortName": "Out",
+                        "BlockName": "OuterOut"
+                    }
+                }
+            ],
+            "internal_connections_data": [
+                {
+                    "from_block_id": 1627096310240,
+                    "from_port": "out",
+                    "to_block_id": 1627096933648,
+                    "to_port": "In",
+                    "points": [
+                        [
+                            100.0,
+                            127.0
+                        ],
+                        [
+                            150.0,
+                            127.0
+                        ],
+                        [
+                            150.0,
+                            127.0
+                        ],
+                        [
+                            200.0,
+                            127.0
+                        ]
+                    ]
+                },
+                {
+                    "from_block_id": 1627096933648,
+                    "from_port": "Out",
+                    "to_block_id": 1627096933744,
+                    "to_port": "in",
+                    "points": [
+                        [
+                            300.0,
+                            127.0
+                        ],
+                        [
+                            350.0,
+                            127.0
+                        ],
+                        [
+                            350.0,
+                            127.0
+                        ],
+                        [
+                            400.0,
+                            127.0
+                        ]
+                    ]
+                }
+            ]
+        },
+        {
+            "class": "Scope",
+            "type": "Scope",
+            "id": 1627096934128,
+            "position": {
+                "x": 500.0,
+                "y": 150.0
+            },
+            "rotation": 0.0,
+            "params": {
+                "NumInputs": 1,
+                "BlockName": "Scope_Out"
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from_block_id": 1627096112480,
+            "from_port": "out",
+            "to_block_id": 1627096277808,
+            "to_port": "In",
+            "points": [
+                [
+                    100.0,
+                    177.0
+                ],
+                [
+                    175.0,
+                    177.0
+                ],
+                [
+                    175.0,
+                    177.0
+                ],
+                [
+                    250.0,
+                    177.0
+                ]
+            ]
+        },
+        {
+            "from_block_id": 1627096277808,
+            "from_port": "Out",
+            "to_block_id": 1627096934128,
+            "to_port": "in1",
+            "points": [
+                [
+                    350.0,
+                    177.0
+                ],
+                [
+                    425.0,
+                    177.0
+                ],
+                [
+                    425.0,
+                    177.0
+                ],
+                [
+                    500.0,
+                    177.0
+                ]
+            ]
+        }
+    ],
+    "simulation": {
+        "duration": 10.0,
+        "dt": 0.01,
+        "solver": "euler"
+    },
+    "blocksimpy_kind": "diagram"
+}
